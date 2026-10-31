@@ -20,7 +20,7 @@ class MainImportMenuTest {
     @Test
     fun regularMoreMenuContainsEveryActionInDisplayOrder() {
         assertEquals(
-            ServerMenuAction.entries,
+            ServerMenuAction.entries.filter { it != ServerMenuAction.ShareToV2Ray },
             serverMenuActions(isComplexProfile = false, includeManagementActions = true),
         )
     }
@@ -42,4 +42,11 @@ class MainImportMenuTest {
         )
         assertEquals(expected, serverMenuActions(isComplexProfile = true, includeManagementActions = true))
     }
+
+    @Test
+    fun aetherOffersNekorayExportButProtectedProfilesDoNot() {
+        assertEquals(true, ServerMenuAction.ShareToV2Ray in serverMenuActions(false, false, isAether = true))
+        assertEquals(false, ServerMenuAction.ShareToV2Ray in serverMenuActions(false, false, isProtected = true, isAether = true))
+    }
+
 }

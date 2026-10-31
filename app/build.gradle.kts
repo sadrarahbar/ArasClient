@@ -57,24 +57,18 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // findByName returns null when keystore.properties is absent, and a release
-            // build with no signing config is quietly signed with the *debug* key. That
-            // produces an APK that installs over a debug-signed one and refuses to
-            // install over a release-signed one — the "Package invalid" people report.
-            // Fail the build rather than ship an APK nobody can upgrade.
+            // Machines without the release key can build Debug. Release variants
+            // are disabled below when the signing configuration is absent.
             signingConfig = signingConfigs.findByName("release")
-                ?: throw GradleException(
-                    "No release signing key. Copy keystore-example.properties to " +
-                        "keystore.properties and point it at a keystore; CI takes the same " +
-                        "key from the KEYSTORE_B64, KEYSTORE_PASSWORD, KEY_ALIAS and " +
-                        "KEY_PASSWORD secrets."
-                )
         }
     }
 
@@ -139,6 +133,15 @@ android {
         }
     }
 
+}
+
+androidComponents {
+    beforeVariants(selector().withBuildType("release")) { variant ->
+        if (keystoreProps.isEmpty()) {
+            variant.enable = false
+            logger.lifecycle("Release disabled: configure keystore.properties to build signed releases.")
+        }
+    }
 }
 
 dependencies {

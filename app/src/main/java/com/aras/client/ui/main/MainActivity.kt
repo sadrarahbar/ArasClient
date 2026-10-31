@@ -33,6 +33,7 @@ import com.aras.client.extension.toastSuccess
 import com.aras.client.handler.AngConfigManager
 import com.aras.client.handler.ArasExportImportManager
 import com.aras.client.handler.MmkvManager
+import com.aras.client.handler.NekorayAetherExporter
 import com.aras.client.handler.SettingsChangeManager
 import com.aras.client.handler.SettingsManager
 import com.aras.client.ui.AboutActivity
@@ -75,6 +76,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : HelperBaseComponentActivity() {
+    private var nekorayShareText by mutableStateOf<String?>(null)
 
     private val mainViewModel: MainViewModel by viewModels {
         MainViewModel.Factory(application, MainRepository(application as AngApplication))
@@ -250,6 +252,25 @@ class MainActivity : HelperBaseComponentActivity() {
                 }
             }
         }
+        nekorayShareText?.let { shareText ->
+            AlertDialog(
+                onDismissRequest = { nekorayShareText = null },
+                title = { Text(stringResource(R.string.share_method_v2ray)) },
+                text = { Text(stringResource(R.string.share_v2ray_nekoray_help)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        Utils.setClipboard(this@MainActivity, shareText)
+                        nekorayShareText = null
+                        toastSuccess(R.string.toast_success)
+                    }) { Text(stringResource(R.string.share_v2ray_copy)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { nekorayShareText = null }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+            )
+        }
         MainScreen(
             mainViewModel = mainViewModel,
             onAction = { action ->
@@ -267,6 +288,7 @@ class MainActivity : HelperBaseComponentActivity() {
                     is MainAction.EditServer -> editServer(action.guid, action.profile)
                     is MainAction.ShareClipboard -> shareToClipboard(action.guid)
                     is MainAction.ShareFullContent -> shareFullContentAsync(action.guid)
+                    is MainAction.ShareToV2Ray -> shareToV2RayAsync(action.guid)
                     is MainAction.ShareTxtFile -> shareAsTxtFile(action.guid)
                     is MainAction.ShareArascFile -> shareAsArascFile(action.guid)
                     MainAction.ExportGroupTxt -> shareTextFile(
@@ -375,6 +397,20 @@ class MainActivity : HelperBaseComponentActivity() {
             } catch (e: Exception) {
                 LogUtil.e(AppConfig.TAG, "Failed to export TXT", e)
                 withContext(Dispatchers.Main) { toastError(R.string.toast_failure) }
+            }
+        }
+    }
+
+    private fun shareToV2RayAsync(guid: String) {
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { NekorayAetherExporter.export(this@MainActivity, guid) }.getOrNull()
+            }
+            when (result) {
+                is NekorayAetherExporter.Result.Ready -> nekorayShareText = result.link
+                NekorayAetherExporter.Result.MissingIdentity -> toastError(R.string.share_v2ray_missing_identity)
+                NekorayAetherExporter.Result.Unsupported -> toastError(R.string.share_v2ray_unsupported)
+                else -> toastError(R.string.toast_failure)
             }
         }
     }

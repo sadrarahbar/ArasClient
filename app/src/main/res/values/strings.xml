@@ -783,4 +783,9 @@
     <string name="title_export_sub_txt">Export subscription (TXT)</string>
     <string name="title_reset_settings">Reset settings to default</string>
     <string name="summary_reset_settings">All preferences return to factory defaults. The app restarts this screen.</string>
+    <string name="share_method_v2ray">Export to Nekoray</string>
+    <string name="share_v2ray_copy">Copy Nekoray link</string>
+    <string name="share_v2ray_nekoray_help">Exports this Aether tunnel as a Nekoray profile for Linux. Install the Aras Aether helper on Linux once, then import the copied link from the clipboard in Nekoray. The link includes your WARP credentials. It runs independently of this phone; it is not a VMess/VLESS link.</string>
+    <string name="share_v2ray_missing_identity">Connect this Aether profile successfully once before exporting its WARP identity.</string>
+    <string name="share_v2ray_unsupported">This export supports WG and MASQUE Aether profiles, including Psiphon. Tor, two-hop tunnels, custom commands and proxy chains are not supported.</string>
 </resources>

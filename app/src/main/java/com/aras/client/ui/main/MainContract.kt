@@ -98,6 +98,7 @@ sealed interface MainAction {
     data class ShareQRCode(val guid: String) : MainAction
     data class ShareClipboard(val guid: String) : MainAction
     data class ShareFullContent(val guid: String) : MainAction
+    data class ShareToV2Ray(val guid: String) : MainAction
     data class ShareTxtFile(val guid: String) : MainAction
     data class ShareArascFile(val guid: String) : MainAction
     data object ExportGroupTxt : MainAction

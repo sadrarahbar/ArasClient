@@ -788,4 +788,9 @@
     <string name="title_pref_show_sub_announcement">نمایش اطلاعیه‌های اشتراک</string>
     <string name="summary_pref_show_sub_announcement">نمایش اطلاعیه و پیام سازنده که اشتراک ارائه می‌دهد، زیر اطلاعات اشتراک. اگر اشتراک نداشته باشد پنهان می‌شود</string>
     <string name="update_no_notes">برای این نسخه یادداشت انتشاری وجود ندارد</string>
+    <string name="share_method_v2ray">Export to Nekoray</string>
+    <string name="share_v2ray_copy">کپی لینک Nekoray</string>
+    <string name="share_v2ray_nekoray_help">این تونل Aether به پروفایل Nekoray برای لینوکس تبدیل می‌شود. ابتدا ابزار Aras Aether را یک‌بار روی لینوکس نصب کنید، سپس لینک کپی‌شده را از کلیپ‌بورد در Nekoray وارد کنید. لینک شامل اطلاعات محرمانهٔ WARP شماست. اتصال مستقل از گوشی است؛ این خروجی لینک VMess یا VLESS نیست.</string>
+    <string name="share_v2ray_missing_identity">پیش از خروجی گرفتن، یک‌بار با این پروفایل Aether با موفقیت متصل شوید تا هویت WARP ساخته شود.</string>
+    <string name="share_v2ray_unsupported">این خروجی برای WG و MASQUE، همراه با سایفون نیز، پشتیبانی می‌شود. تور، تونل دو مرحله‌ای، فرمان سفارشی و زنجیرهٔ پراکسی پشتیبانی نمی‌شوند.</string>
 </resources>

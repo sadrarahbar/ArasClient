@@ -87,6 +87,7 @@ internal enum class ServerMenuAction(
     ShareQRCode(R.string.share_method_qrcode, isShareAction = true, supportsComplexProfiles = false),
     ShareClipboard(R.string.share_method_clipboard, isShareAction = true, supportsComplexProfiles = false),
     ShareFullContent(R.string.share_method_full_content, isShareAction = true, supportsComplexProfiles = true),
+    ShareToV2Ray(R.string.share_method_v2ray, isShareAction = true, supportsComplexProfiles = false),
     ShareTxtFile(R.string.share_method_txtfile, isShareAction = true, supportsComplexProfiles = false),
     ShareArasc(R.string.share_method_arasc, isShareAction = true, supportsComplexProfiles = false),
     Edit(R.string.action_edit, isShareAction = false, supportsComplexProfiles = true),
@@ -98,7 +99,9 @@ internal fun serverMenuActions(
     includeManagementActions: Boolean,
     isProtected: Boolean = false,
     editable: Boolean = true,
+    isAether: Boolean = false,
 ): List<ServerMenuAction> = ServerMenuAction.entries.filter { action ->
+    if (action == ServerMenuAction.ShareToV2Ray && !isAether) return@filter false
     // Protected configs: only test/delete are allowed — no share, no edit,
     // no full-content view. Enforced here so every entry point is covered.
     if (isProtected && (action.isShareAction || action == ServerMenuAction.Edit)) return@filter false
@@ -183,6 +186,7 @@ private fun ServerMenuAction.iconRes(): Int = when (this) {
     ServerMenuAction.ShareQRCode -> R.drawable.ic_qu_scan_24dp
     ServerMenuAction.ShareClipboard -> R.drawable.ic_copy
     ServerMenuAction.ShareFullContent -> R.drawable.ic_description_24dp
+    ServerMenuAction.ShareToV2Ray -> R.drawable.ic_copy
     ServerMenuAction.ShareTxtFile -> R.drawable.ic_save_24dp
     ServerMenuAction.ShareArasc -> R.drawable.ic_file_24dp
     ServerMenuAction.Edit -> R.drawable.ic_edit_24dp
@@ -209,6 +213,7 @@ fun ShareMethodDialog(
         includeManagementActions = more,
         isProtected = com.aras.client.handler.ArasExportImportManager.isProtected(guid),
         editable = profile.configType.hasEditor,
+        isAether = profile.configType == EConfigType.AETHER,
     )
     val palette = LocalGlassPalette.current
 
@@ -235,6 +240,7 @@ fun ShareMethodDialog(
                             ServerMenuAction.ShareQRCode -> onAction(MainAction.ShareQRCode(guid))
                             ServerMenuAction.ShareClipboard -> onAction(MainAction.ShareClipboard(guid))
                             ServerMenuAction.ShareFullContent -> onAction(MainAction.ShareFullContent(guid))
+                            ServerMenuAction.ShareToV2Ray -> onAction(MainAction.ShareToV2Ray(guid))
                             ServerMenuAction.ShareTxtFile -> onAction(MainAction.ShareTxtFile(guid))
                             ServerMenuAction.ShareArasc -> onAction(MainAction.ShareArascFile(guid))
                             ServerMenuAction.Edit -> onAction(MainAction.EditServer(guid, profile))
