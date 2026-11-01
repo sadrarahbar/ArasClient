@@ -24,9 +24,10 @@ captures/
 *.apks
 *.xapk
 
-# Linux client dependencies, downloaded native cores and build outputs
-/linux/.venv/
-/linux/cores/
+# Desktop dependencies, downloaded native cores and build outputs
+/windows/.venv/
+/windows/cores/
+/linux/
 dist/
 
 # Python bytecode and tool caches
@@ -37,3 +38,8 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# Windows generated installers
+*.exe
+*.msi
+*.msix

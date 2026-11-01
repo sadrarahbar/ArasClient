@@ -174,14 +174,10 @@ class QRDialog(QDialog):
         self.setWindowTitle("Import from QR code"); self.resize(520, 500)
         self.setStyleSheet(f"QDialog {{background:{BG};color:white;}} QLabel {{color:white;}} QPushButton {{padding:12px;}}")
         layout = QVBoxLayout(self)
-        self.preview = QLabel("Choose a QR image or start your camera."); self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview = QLabel("Choose a QR image to import."); self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview.setMinimumHeight(280); layout.addWidget(self.preview)
         image = QPushButton("Open QR image"); image.clicked.connect(self.image); layout.addWidget(image)
-        self.devices = QComboBox(); self.devices.addItems([str(p) for p in sorted(Path('/dev').glob('video[0-9]*'))]); layout.addWidget(self.devices)
-        camera = QPushButton("Start camera"); camera.clicked.connect(self.start_camera)
-        camera.setEnabled(bool(self.devices.count()) and bool(shutil.which("ffmpeg"))); layout.addWidget(camera)
         close = QPushButton("Cancel"); close.clicked.connect(self.reject); layout.addWidget(close)
-        self.finished.connect(self.stop_camera)
 
     def decode(self, data):
         from PIL import Image
@@ -203,28 +199,6 @@ class QRDialog(QDialog):
             if not self.decode(path.read_bytes()): QMessageBox.information(self, "QR code", "No QR code was found in the image.")
         except Exception: QMessageBox.warning(self, "QR code", "Could not read this QR image.")
 
-    def start_camera(self):
-        if self.camera: return
-        self.camera = QProcess(self); self.camera.readyReadStandardOutput.connect(self.frame)
-        self.camera.start("ffmpeg", ["-loglevel", "error", "-f", "v4l2", "-video_size", "640x480", "-i", self.devices.currentText(),
-                                     "-r", "3", "-f", "image2pipe", "-vcodec", "mjpeg", "-"])
-        self.camera.finished.connect(lambda *_: self.preview.setText("Camera stopped. You can import a QR image instead.") if self.isVisible() else None)
-
-    def frame(self):
-        if not self.camera: return
-        self.buffer += bytes(self.camera.readAllStandardOutput())
-        if len(self.buffer) > 4_000_000: self.buffer = b""
-        while (start := self.buffer.find(b"\xff\xd8")) >= 0 and (end := self.buffer.find(b"\xff\xd9", start)) >= 0:
-            data = self.buffer[start:end + 2]; self.buffer = self.buffer[end + 2:]
-            pix = QPixmap(); pix.loadFromData(data)
-            self.preview.setPixmap(pix.scaled(480, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-            try:
-                if self.decode(data): return
-            except Exception: pass
-
-    def stop_camera(self, *_):
-        if self.camera:
-            self.camera.terminate(); self.camera.waitForFinished(1500); self.camera.kill(); self.camera = None
 
 
 class Window(QMainWindow):
@@ -300,6 +274,14 @@ class Window(QMainWindow):
         self.import_button.setEnabled(engine.state in ("idle", "error"))
 
     def toggle(self):
+        from .win32 import is_admin, elevate
+        if self.engine.state in ("idle", "error") and self.profile and self.tun.isChecked() and not is_admin():
+            try:
+                elevate(self.root)
+                QApplication.instance().quit()
+            except OSError as error:
+                QMessageBox.warning(self, "Tesla Vpn", str(error))
+            return
         if self.engine.state in ("connected", "starting", "checking"): self.engine.stop()
         elif self.profile: self.engine.start(self.profile, "tun" if self.tun.isChecked() else "proxy")
 
@@ -332,6 +314,6 @@ class Window(QMainWindow):
     def closeEvent(self, event):
         if self.engine.state not in ("idle", "error"):
             self.engine.stop()
-            if self.engine.core is not None and not self.engine.core.waitForFinished(10000):
+            if self.engine.core is not None and not self.engine.core.waitForFinished(12000):
                 event.ignore(); QMessageBox.information(self, "Tesla Vpn", "Waiting for VPN routes to be restored. Please close again in a moment."); return
         event.accept()

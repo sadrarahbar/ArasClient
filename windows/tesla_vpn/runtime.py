@@ -14,7 +14,7 @@ def resources():
 
 
 def state_root():
-    return Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "tesla-vpn"
+    return Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData/Local"))) / "TeslaVpn"
 
 
 def free_port():
@@ -36,7 +36,7 @@ def prepare(profile: Profile, port: int, root: Path, cores: Path | None = None):
     cores = cores or resources() / "cores"
     work = root / "accounts" / hashlib.sha256(json.dumps(profile.encode(), sort_keys=True).encode()).hexdigest()
     work.mkdir(parents=True, mode=0o700, exist_ok=True); work.chmod(0o700)
-    env = {"HOME": str(work), "SSL_CERT_FILE": "/etc/ssl/certs/ca-certificates.crt"}
+    env = {"HOME": str(work), "PATH": str(cores) + os.pathsep + os.environ.get("PATH", "")}
     if profile.kind == "aether":
         payload = profile.data
         args = list(payload["arguments"])
@@ -54,9 +54,9 @@ def prepare(profile: Profile, port: int, root: Path, cores: Path | None = None):
         if payload.get("identity"):
             target = work / ("aether-masque.toml" if payload["protocol"] == "masque" else "aether-wg.toml")
             if not target.exists(): private_write(target, payload["identity"].encode())
-        env["AETHER_PSIPHON_BIN"] = str(cores / "psiphon-tunnel-core")
+        env["AETHER_PSIPHON_BIN"] = str(cores / "psiphon-tunnel-core.exe")
         env["AETHER_PSIPHON_SERVER_ENTRIES"] = str(cores / "psiphon-servers.txt")
-        binary = cores / "aether"
+        binary = cores / "aether.exe"
     else:
         config = json.loads(json.dumps(profile.data))
         config["inbounds"] = [{"tag": "socks", "listen": "127.0.0.1", "port": port, "protocol": "socks",
@@ -66,10 +66,10 @@ def prepare(profile: Profile, port: int, root: Path, cores: Path | None = None):
         target = work / "xray.json"
         private_write(target, json.dumps(config).encode())
         env["XRAY_LOCATION_ASSET"] = str(cores)
-        binary = cores / "xray"
+        binary = cores / "xray.exe"
         args = ["run", "-c", str(target)]
-    if not os.access(binary, os.X_OK):
-        raise ValueError("Native cores are missing. Run the Linux setup script first.")
+    if not binary.is_file():
+        raise ValueError("Native cores are missing. Run windows/setup.ps1 first.")
     return Plan([str(binary), *args], env, str(work))
 
 

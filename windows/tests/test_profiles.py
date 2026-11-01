@@ -28,7 +28,7 @@ class ProfileTests(unittest.TestCase):
             before = store.path.read_bytes()
             with self.assertRaises(ImportError): store.import_text('not a config')
             self.assertEqual(store.path.read_bytes(), before)
-            self.assertEqual(store.path.stat().st_mode & 0o777, 0o600)
+            if sys.platform != 'win32': self.assertEqual(store.path.stat().st_mode & 0o777, 0o600)
             self.assertEqual(store.path.parent.stat().st_mode & 0o777, 0o700)
             store.import_text('aether://?protocol=masque#replacement')
             self.assertEqual(store.load().name, "replacement")
@@ -48,7 +48,7 @@ class ProfileTests(unittest.TestCase):
     def test_runtime_rebinds_final_proxy_and_preserves_renewed_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); cores = root / 'cores'; cores.mkdir()
-            core = cores / 'aether'; core.write_text('#!/bin/sh\n'); core.chmod(0o755)
+            core = cores / 'aether.exe'; core.write_text('#!/bin/sh\n'); core.chmod(0o755)
             args = portable()['arguments'] + ['--psiphon', '--psiphon-bind', '127.0.0.1:%socks_port%']
             p = parse_import(json.dumps(portable(args)))
             plan = prepare(p, 12345, root / 'state', cores)
@@ -57,7 +57,7 @@ class ProfileTests(unittest.TestCase):
             account = Path(plan.env['AETHER_WG_CONFIG']); account.write_text('renewed')
             prepare(p, 12346, root / 'state', cores)
             self.assertEqual(account.read_text(), 'renewed')
-            self.assertEqual(account.stat().st_mode & 0o777, 0o600)
+            if sys.platform != 'win32': self.assertEqual(account.stat().st_mode & 0o777, 0o600)
 
     def test_aether_h2_psiphon_route_is_preserved(self):
         p = parse_import('aether://?protocol=masque&transport=h2&psiphon=chain&region=DE&noize=off#test')

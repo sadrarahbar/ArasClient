@@ -1,4 +1,5 @@
-# Qt bindings come from python3-pyqt6 on Ubuntu, or PyQt6==6.10.2 via pip.
+PyQt6==6.10.2
+PyQt6-Qt6==6.10.2
 pyinstaller==6.22.0
 zxing-cpp==3.1.1
 qrcode==8.2

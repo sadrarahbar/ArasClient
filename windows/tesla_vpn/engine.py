@@ -3,7 +3,6 @@ import json
 import os
 import re
 from pathlib import Path
-import signal
 import socket
 import time
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, QUrl, pyqtSignal
@@ -57,7 +56,7 @@ class Engine(QObject):
             self.core.finished.connect(self._finished)
             self.buffer = b""
             self._set("starting", "Authorizing system VPN…" if mode == "tun" else "Starting tunnel…")
-            args = ["pkexec", *command("--tun-helper", str(request))] if mode == "tun" else command("--backend-run", str(request))
+            args = command("--tun-helper" if mode == "tun" else "--backend-run", str(request))
             self.core.start(args[0], args[1:])
             self.deadline = time.monotonic() + 240
             self.poller.start()
@@ -80,20 +79,21 @@ class Engine(QObject):
         self.buffer += bytes(self.core.readAllStandardOutput())
         while b"\n" in self.buffer:
             line, self.buffer = self.buffer.split(b"\n", 1)
-            if self.mode != "tun": continue  # Native logs may contain private fields; never display them.
+            # Only our supervisor emits JSON; native logs never enter the GUI.
             try: event = json.loads(line).get("event")
             except (ValueError, AttributeError): continue
             if event == "backend-started": self.message = "Finding a working endpoint…"; self.changed.emit()
             elif event == "tun-ready": self._probe("startup-direct", direct=True)
-            elif event in ("tun-setup-failed", "tun-failed", "network-tools-missing", "routing-conflict", "tun-already-active", "tun-routing-failed"):
-                messages = {"tun-routing-failed": "System traffic is not routed into Tesla VPN. Disconnect other VPNs and retry.", "routing-conflict": "Another VPN has conflicting routes. Disconnect it first.",
-                            "network-tools-missing": "TUN requires iproute2 and nftables.",
-                            "tun-already-active": "A Tesla TUN session is already active."}
-                self._fail(messages.get(event, "Could not start system VPN. Check administrator permission and /dev/net/tun."))
+            elif event in ("tun-setup-failed", "tun-failed", "tun-routing-failed", "admin-required", "backend-failed"):
+                messages = {"admin-required": "System VPN requires administrator permission.",
+                    "tun-routing-failed": "System traffic did not enter Tesla VPN. Disconnect other VPNs and retry.",
+                    "backend-failed": "The VPN core stopped. Check the imported configuration."}
+                self._fail(messages.get(event, "Could not start Windows TUN. Check administrator permission and the bundled Wintun driver."))
+
 
     def _process_error(self, error):
         if error == QProcess.ProcessError.FailedToStart:
-            self._fail("Could not start the VPN helper. Check the installation and pkexec.")
+            self._fail("Could not start the VPN helper. Check the installation and Windows security settings.")
 
     def _finished(self, *_):
         if self.state == "stopping": self._stopped()
@@ -179,18 +179,13 @@ class Engine(QObject):
         if self.bridge is not None:
             self.bridge.terminate(); self.bridge.waitForFinished(1000); self.bridge.kill(); self.bridge = None
         if self.core is not None and self.core.state() != QProcess.ProcessState.NotRunning:
-            if self.mode == "tun":
-                self.core.write(b"stop\n"); self.core.closeWriteChannel()
-            else:
-                try: os.killpg(int(self.core.processId()), signal.SIGINT)
-                except ProcessLookupError: pass
-                QTimer.singleShot(3000, self._force_stop_user_core)
+            self.core.write(b"stop\n"); self.core.closeWriteChannel()
+            QTimer.singleShot(10000, self._force_stop_user_core)
         else: self._stopped()
 
     def _force_stop_user_core(self):
-        if self.mode == "proxy" and self.state == "stopping" and self.core is not None:
-            try: os.killpg(int(self.core.processId()), signal.SIGKILL)
-            except ProcessLookupError: pass
+        if self.state == "stopping" and self.core is not None:
+            self.core.kill()  # Closing its Job Object kills every descendant too.
 
     def _stopped(self):
         message, self.error_after_stop = self.error_after_stop, ""

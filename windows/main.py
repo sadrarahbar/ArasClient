@@ -9,7 +9,7 @@ import sys
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Tesla Vpn for Linux")
+    parser = argparse.ArgumentParser(description="Tesla Vpn for Windows 10/11 x64")
     parser.add_argument("--tun-helper", metavar="SESSION")
     parser.add_argument("--backend-run", metavar="SESSION")
     parser.add_argument("--http-bridge", nargs=2, type=int, metavar=("SOCKS_PORT", "HTTP_PORT"))
@@ -17,21 +17,29 @@ def main():
     parser.add_argument("--profile", metavar="FILE", help="Import a configuration file on startup")
     parser.add_argument("--connect", action="store_true", help="Connect the saved profile on startup")
     parser.add_argument("--mode", choices=("tun", "proxy"), default="tun", help="Startup connection mode")
+    parser.add_argument("--state-root", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--wait-parent", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--restore-proxy", action="store_true", help=argparse.SUPPRESS)
     options = parser.parse_args()
+    if options.wait_parent:
+        from tesla_vpn.win32 import wait_for_parent
+        wait_for_parent(options.wait_parent)
+    if options.restore_proxy:
+        from tesla_vpn.runtime import state_root
+        from tesla_vpn.system_proxy import SystemProxy
+        SystemProxy(options.state_root or state_root()).restore(); return 0
     if options.tun_helper:
         from tesla_vpn.tun import main as helper
         return helper(options.tun_helper)
     if options.backend_run:
-        plan = json.loads(Path(options.backend_run).read_text())["plan"]
-        env = {k: v for k, v in os.environ.items() if not k.startswith("AETHER_") and k not in ("RUST_LOG", "LD_PRELOAD")}
-        env.update(plan["env"])
-        os.chdir(plan["cwd"]); os.setsid()
-        import ctypes, signal
-        ctypes.CDLL(None).prctl(1, signal.SIGINT, 0, 0, 0)
-        os.execve(plan["argv"][0], plan["argv"], env)
+        from tesla_vpn.tun import main as helper
+        return helper(options.backend_run, with_tun=False)
     if options.http_bridge:
-        import ctypes, signal
-        ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)
+        import threading
+        def parent_watch():
+            for _ in sys.stdin: pass
+            os._exit(0)
+        threading.Thread(target=parent_watch, daemon=True).start()
         from tesla_vpn.http_bridge import serve
         asyncio.run(serve(*options.http_bridge)); return 0
     from PyQt6.QtCore import QLockFile, QTimer
@@ -40,7 +48,11 @@ def main():
     from tesla_vpn.runtime import state_root
     from tesla_vpn.ui import Window
     app = QApplication(sys.argv[:1]); app.setApplicationName("Tesla Vpn"); app.setDesktopFileName("tesla-vpn"); app.setFont(QFont("DejaVu Sans", 14))
-    root = state_root(); root.mkdir(parents=True, mode=0o700, exist_ok=True); root.chmod(0o700)
+    from tesla_vpn.win32 import supported_windows, private_directory
+    if sys.platform == "win32" and not supported_windows():
+        QMessageBox.critical(None, "Tesla Vpn", "Windows 10 version 1809 or newer, 64-bit, is required."); return 1
+    root = options.state_root or state_root()
+    private_directory(root)
     lock = QLockFile(str(root / "application.lock"))
     if not lock.tryLock(100): QMessageBox.information(None, "Tesla Vpn", "Tesla Vpn is already running."); return 0
     window = Window(root); app.setWindowIcon(window.windowIcon())
@@ -49,7 +61,7 @@ def main():
     if options.mode == "proxy": window.proxy.setChecked(True)
     window.show()
     if options.connect and window.profile:
-        QTimer.singleShot(0, lambda: window.engine.start(window.profile, options.mode))
+        QTimer.singleShot(0, window.toggle)
     if options.screenshot:
         QTimer.singleShot(600, lambda: (window.grab().save(options.screenshot), app.quit()))
     return app.exec()
