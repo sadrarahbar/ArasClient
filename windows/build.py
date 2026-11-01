@@ -24,15 +24,9 @@ def main():
     png=build/'icon.png';app_icon().pixmap(256,256).save(str(png))
     Image.open(png).save(build/'icon.ico',sizes=[(16,16),(32,32),(48,48),(256,256)])
     out=PROJECT/'artifacts/windows'
-    subprocess.run([sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir',
-        '--console','--hide-console','hide-early','--name','TeslaVpn',
-        '--icon',str(build/'icon.ico'),'--manifest',str(ROOT/'app.manifest'),
-        '--version-file',str(ROOT/'version.txt'),'--distpath',str(out),
-        '--workpath',str(build/'pyinstaller'),'--specpath',str(build),'--paths',str(ROOT),
-        '--add-data',str(ROOT/'assets')+os.pathsep+'assets',
-        '--add-data',str(ROOT/'cores')+os.pathsep+'cores',
-        '--add-data',str(ROOT/'licenses')+os.pathsep+'licenses',
-        '--exclude-module','PySide6','--exclude-module','PyQt5',str(ROOT/'main.py')],check=True)
+    subprocess.run([sys.executable,'-m','PyInstaller','--noconfirm','--clean',
+        '--distpath',str(out),'--workpath',str(build/'pyinstaller'),
+        str(ROOT/'TeslaVpn.spec')],check=True)
     shutil.copy2(ROOT/'README.fa.md',out/'TeslaVpn/README.fa.md')
     zipname=out/'TeslaVpn-1.0.0-Windows-x64.zip'
     with zipfile.ZipFile(zipname,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as z:
