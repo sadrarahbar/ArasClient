@@ -29,7 +29,7 @@ class ProfileTests(unittest.TestCase):
             with self.assertRaises(ImportError): store.import_text('not a config')
             self.assertEqual(store.path.read_bytes(), before)
             if sys.platform != 'win32': self.assertEqual(store.path.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(store.path.parent.stat().st_mode & 0o777, 0o700)
+            if sys.platform != 'win32': self.assertEqual(store.path.parent.stat().st_mode & 0o777, 0o700)
             store.import_text('aether://?protocol=masque#replacement')
             self.assertEqual(store.load().name, "replacement")
             self.assertEqual(len(list(Path(root).glob('profile*.json'))), 1)

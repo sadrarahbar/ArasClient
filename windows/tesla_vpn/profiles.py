@@ -129,7 +129,7 @@ def aether_link(text):
     get = lambda key, default="": q.get(key, [default])[0]
     protocol = get("protocol", "wg")
     if protocol not in ("wg", "masque") or get("tor", "off") != "off":
-        raise ImportError("This Linux version supports single-hop Aether WG/MASQUE, optionally with Psiphon.")
+        raise ImportError("This Windows version supports single-hop Aether WG/MASQUE, optionally with Psiphon.")
     args = ["--bind", "127.0.0.1:%socks_port%", "--protocol", protocol,
             "--scan", get("scan", "balanced"), "--ip", get("ip", "v4"), "--log-level", "warn"]
     if get("noize", "auto") != "auto":
@@ -254,7 +254,7 @@ class ProfileStore:
     def load(self):
         if not self.path.exists(): return None
         try:
-            obj = json.loads(self.path.read_text())
+            obj = json.loads(self.path.read_text(encoding="utf-8"))
             if obj.get("version") != 1 or obj.get("kind") not in ("aether", "xray"):
                 raise ValueError()
             return Profile(obj["name"], obj["kind"], obj["data"])
