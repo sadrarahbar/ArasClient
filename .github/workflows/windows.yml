@@ -43,6 +43,8 @@ jobs:
           $setup = Get-Item artifacts/windows/*-Setup.exe
           $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
           Add-Content artifacts/windows/SHA256SUMS "$hash  $($setup.Name)"
+      - name: Install, launch and uninstall the setup package
+        run: python windows/installer_smoke.py
       - uses: actions/upload-artifact@v4
         with:
           name: TeslaVpn-Windows-x64
