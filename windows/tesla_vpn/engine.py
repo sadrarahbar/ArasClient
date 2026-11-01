@@ -155,9 +155,23 @@ class Engine(QObject):
 
     def _start_bridge(self):
         self.bridge = QProcess(self)
+        self.bridge.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         args = command("--http-bridge", str(self.port), str(self.http_port))
         self.bridge.start(args[0], args[1:])
         if not self.bridge.waitForStarted(2000): raise OSError("HTTP proxy failed")
+        deadline = time.monotonic() + 8
+        buffer = b""
+        ready = False
+        while time.monotonic() < deadline and self.bridge.state() != QProcess.ProcessState.NotRunning:
+            self.bridge.waitForReadyRead(200)
+            buffer += bytes(self.bridge.readAllStandardOutput())
+            while b"\n" in buffer:
+                line, buffer = buffer.split(b"\n", 1)
+                try: ready = json.loads(line).get("event") == "http-ready"
+                except (ValueError, AttributeError): continue
+                if ready: break
+            if ready: break
+        if not ready: raise OSError("HTTP proxy did not become ready")
         self.bridge.finished.connect(lambda *_: self._fail("The local proxy stopped.") if self.state == "connected" else None)
 
     def test(self):

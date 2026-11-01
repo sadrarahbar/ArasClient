@@ -18,6 +18,59 @@ def run(args,**kwargs):
     return r
 
 
+def packaged_data_path(exe, state):
+    """A real Xray+HTTP bridge round trip, entirely on loopback, no VPN credentials."""
+    import socket, threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from tesla_vpn.profiles import Profile, private_write
+    from tesla_vpn.runtime import prepare, free_port
+    from tesla_vpn.win32 import private_directory
+    class Origin(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200);self.send_header('Content-Length','11');self.end_headers();self.wfile.write(b'TESLA-CI-OK')
+        def log_message(self,*args):pass
+    private_directory(state)
+    origin=ThreadingHTTPServer(('127.0.0.1',0),Origin)
+    threading.Thread(target=origin.serve_forever,daemon=True).start()
+    socks_port,http_port=free_port(),free_port()
+    while socks_port==http_port:http_port=free_port()
+    profile=Profile('CI loopback only','xray',{'outbounds':[{'protocol':'freedom','tag':'proxy'}]})
+    plan=prepare(profile,socks_port,state,exe.parent/'_internal/cores')
+    request=state/'session.json';private_write(request,json.dumps({'plan':plan.encode(),'port':socks_port,'mode':'proxy'}).encode())
+    backend=bridge=None
+    def listener(port):
+        deadline=time.monotonic()+15
+        while time.monotonic()<deadline:
+            try:
+                with socket.create_connection(('127.0.0.1',port),timeout=.2):return
+            except OSError:time.sleep(.1)
+        raise RuntimeError('Packaged helper did not open its listener.')
+    try:
+        backend=subprocess.Popen([str(exe),'--backend-run',str(request)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        listener(socks_port)
+        bridge=subprocess.Popen([str(exe),'--http-bridge',str(socks_port),str(http_port)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        listener(http_port)
+        with socket.create_connection(('127.0.0.1',http_port),timeout=10) as sock:
+            port=origin.server_port
+            sock.sendall(f'GET http://127.0.0.1:{port}/ HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n'.encode())
+            response=b''
+            while chunk:=sock.recv(8192):response+=chunk
+        if not response.endswith(b'TESLA-CI-OK'):raise RuntimeError('Packaged HTTP/SOCKS data path failed.')
+        print('Packaged Xray + HTTP bridge successfully relay a real local request')
+    finally:
+        for child in [bridge,backend]:
+            if child and child.poll() is None:
+                child.stdin.close()
+                try:child.wait(timeout=12)
+                except subprocess.TimeoutExpired:child.kill();child.wait();raise RuntimeError('Packaged helper did not stop on parent EOF.')
+        origin.shutdown();origin.server_close()
+    for port in [socks_port,http_port]:
+        try:
+            with socket.create_connection(('127.0.0.1',port),timeout=.2):raise RuntimeError('Listener survived helper shutdown.')
+        except OSError:pass
+    print('Packaged helpers close listeners and child processes on parent EOF')
+
+
 def main():
     cores=ROOT/'cores'
     for name,flag in [('aether.exe','--version'),('xray.exe','version'),('sing-box.exe','version')]:
@@ -52,6 +105,7 @@ def main():
         if result.stdout.strip()!='0':raise RuntimeError('Wintun adapter did not disappear after supervisor exit.')
         print('Wintun adapter cleaned up after Job Object close')
         exe=ROOT.parent/'artifacts/windows/TeslaVpn/TeslaVpn.exe'
+        packaged_data_path(exe,temp/'data-path-state')
         fixture=temp/'profile.txt';fixture.write_text('aether://?protocol=masque#CI-no-credentials')
         image=ROOT.parent/'artifacts/windows/preview.png'
         run([exe,'--state-root',temp/'state','--profile',fixture,'--screenshot',image],env=dict(os.environ,QT_QPA_PLATFORM='offscreen'))
