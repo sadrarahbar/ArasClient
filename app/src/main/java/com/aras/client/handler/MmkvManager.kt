@@ -192,7 +192,10 @@ object MmkvManager {
      */
     fun setSelectServer(guid: String) {
         withProfileIndexLock {
-            mainStorage.encode(KEY_SELECTED_SERVER, guid)
+            val selected = if (AppConfig.SINGLE_PROFILE_MODE && decodeServerConfig(guid) == null) {
+                SingleProfilePolicy.choose(decodeAllServerList(), getSelectServer()) ?: return@withProfileIndexLock
+            } else guid
+            mainStorage.encode(KEY_SELECTED_SERVER, selected)
         }
     }
 
@@ -270,6 +273,28 @@ object MmkvManager {
     }
 
 
+    /** Migrates existing installs while preserving the current valid selection. */
+    fun enforceSingleProfile() {
+        if (!AppConfig.SINGLE_PROFILE_MODE) return
+        withProfileIndexLock {
+            val available = decodeAllServerList().filter { decodeServerConfig(it) != null }
+            val keep = SingleProfilePolicy.choose(available, getSelectServer())
+            retainOnlyProfileLocked(keep)
+        }
+    }
+
+    private fun retainOnlyProfileLocked(keep: String?) {
+        (decodeSubsList() + DEFAULT_SUBSCRIPTION_ID).distinct().forEach { subId ->
+            requireStorageWrite(
+                persistServerList(decodeServerList(subId).filter { it == keep }.toMutableList(), subId),
+                "Failed to update single-profile index",
+            )
+        }
+        removeProfilePayloads(profileFullStorage.allKeys().orEmpty().filter { it != keep })
+        if (keep == null) mainStorage.remove(KEY_SELECTED_SERVER)
+        else requireStorageWrite(mainStorage.encode(KEY_SELECTED_SERVER, keep), "Failed to select profile")
+    }
+
     /**
      * Encodes the server configuration.
      *
@@ -302,6 +327,7 @@ object MmkvManager {
                     )
                 }
             }
+            if (AppConfig.SINGLE_PROFILE_MODE) retainOnlyProfileLocked(key)
         }
 
         return key
@@ -324,6 +350,18 @@ object MmkvManager {
         if (profiles.isEmpty()) return
 
         withProfileIndexLock {
+            if (AppConfig.SINGLE_PROFILE_MODE) {
+                val guid = SingleProfilePolicy.choose(profiles.keys.toList(), null)!!
+                requireStorageWrite(profileFullStorage.encode(guid, JsonUtil.toJson(profiles.getValue(guid))),
+                    "Failed to save profile payload")
+                rawConfigs[guid]?.let { raw ->
+                    requireStorageWrite(serverRawStorage.encode(guid, raw), "Failed to save raw profile payload")
+                }
+                requireStorageWrite(persistServerList(mutableListOf(guid), subscriptionId),
+                    "Failed to publish profile index")
+                retainOnlyProfileLocked(guid)
+                return@withProfileIndexLock
+            }
             val replacedServers = if (append) {
                 emptyList()
             } else {

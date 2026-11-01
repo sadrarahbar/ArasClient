@@ -16,3 +16,24 @@ keystore/
 .idea/
 .DS_Store
 captures/
+
+# Generated installers and archives
+/artifacts/
+*.apk
+*.aab
+*.apks
+*.xapk
+
+# Linux belongs to the Linux-Client branch; keep local files untracked here.
+/linux/
+
+# Local dependencies, outputs and caches
+.venv/
+dist/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

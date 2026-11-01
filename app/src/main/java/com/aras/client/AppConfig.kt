@@ -3,6 +3,9 @@ package com.aras.client
 
 object AppConfig {
 
+    /** Tesla presentation; legacy screens and multi-profile features remain available in code. */
+    const val SINGLE_PROFILE_MODE = true
+
     /** The application's package name. */
     const val ANG_PACKAGE = BuildConfig.APPLICATION_ID
     const val TAG = BuildConfig.APPLICATION_ID

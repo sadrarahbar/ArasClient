@@ -37,6 +37,7 @@ class AngApplication : Application() {
         super.onCreate()
 
         MmkvManager.initialize(this)
+        MmkvManager.enforceSingleProfile()
 
         AppLocaleManager.initialize(this)
 

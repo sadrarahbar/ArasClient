@@ -26,6 +26,7 @@ object FreeSubManager {
 
     /** Fetches and transactionally replaces the complete Free profile list. */
     suspend fun sync(context: Context) = syncMutex.withLock {
+        if (AppConfig.SINGLE_PROFILE_MODE) return@withLock
         try {
             val now = System.currentTimeMillis()
             val url = currentUrl(context)

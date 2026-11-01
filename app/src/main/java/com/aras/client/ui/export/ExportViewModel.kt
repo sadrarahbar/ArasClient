@@ -151,7 +151,7 @@ class ExportViewModel : ViewModel() {
         _state.update { it.copy(note = note) }
     }
 
-    fun suggestedFileName(): String = "ArasClient-Configs.${ArascMime.EXT}"
+    fun suggestedFileName(): String = "Tesla Vpn-Configs.${ArascMime.EXT}"
 
     /** Validates the form; returns false (with inline state) when invalid. */
     fun startExport(): Boolean {
@@ -169,7 +169,7 @@ class ExportViewModel : ViewModel() {
         val s = _state.value
         val items = s.groups.mapNotNull { group ->
             if (group.selectedGuids.isEmpty()) null
-            else Triple(group.subscriptionId, group.title.ifBlank { "ArasClient" }, group.selectedGuids.toList())
+            else Triple(group.subscriptionId, group.title.ifBlank { "Tesla Vpn" }, group.selectedGuids.toList())
         }
         val subLinks = if (s.includeSubs) {
             s.groups.filter { it.subscriptionId.isNotBlank() && it.selectedGuids.isNotEmpty() }

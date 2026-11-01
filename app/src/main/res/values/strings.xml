@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name" translatable="false">ArasClient</string>
+    <string name="app_name" translatable="false">Tesla Vpn</string>
     <string name="app_widget_name">Connect / Disconnect</string>
-    <string name="app_tile_name">Aras: Connect / Disconnect</string>
+    <string name="app_tile_name">Tesla Vpn: Connect / Disconnect</string>
     <string name="app_tile_first_use">Add a profile in the app before using this feature.</string>
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
@@ -20,9 +20,9 @@
     <string name="toast_permission_denied">Permission denied</string>
     <string name="toast_permission_denied_notification">Notification permission denied</string>
     <string name="notification_action_more">Tap for more</string>
-    <string name="app_quick_connect_tile_name" tools:ignore="MissingTranslation">Aras: Update &amp; Connect</string>
-    <string name="quick_settings_tiles_title" tools:ignore="MissingTranslation">Add the two ArasClient tiles</string>
-    <string name="quick_settings_tiles_message" tools:ignore="MissingTranslation">Open Quick Settings, tap Edit, then add both ArasClient tiles: “Aras: Connect / Disconnect” and “Update &amp; Connect”. Android does not add third-party tiles automatically.</string>
+    <string name="app_quick_connect_tile_name" tools:ignore="MissingTranslation">Tesla Vpn: Update &amp; Connect</string>
+    <string name="quick_settings_tiles_title" tools:ignore="MissingTranslation">Add the two Tesla Vpn tiles</string>
+    <string name="quick_settings_tiles_message" tools:ignore="MissingTranslation">Open Quick Settings, tap Edit, then add both Tesla Vpn tiles: “Tesla Vpn: Connect / Disconnect” and “Update &amp; Connect”. Android does not add third-party tiles automatically.</string>
     <string name="action_got_it" tools:ignore="MissingTranslation">Got it</string>
     <string name="quick_connect_tile_running" tools:ignore="MissingTranslation">Updating subscription…</string>
     <string name="quick_connect_progress_stopping" tools:ignore="MissingTranslation">Stopping current connection…</string>
@@ -33,7 +33,7 @@
     <string name="quick_connect_success" tools:ignore="MissingTranslation">Subscription updated and connected</string>
     <string name="quick_connect_failure" tools:ignore="MissingTranslation">Update and connect failed</string>
     <string name="quick_connect_no_server" tools:ignore="MissingTranslation">No reachable server was found</string>
-    <string name="quick_connect_vpn_permission" tools:ignore="MissingTranslation">Allow VPN access in ArasClient first</string>
+    <string name="quick_connect_vpn_permission" tools:ignore="MissingTranslation">Allow VPN access in Tesla Vpn first</string>
     <string name="quick_connect_already_running" tools:ignore="MissingTranslation">An update is already running</string>
     <string name="toast_services_start">Starting service</string>
     <string name="toast_services_stop">Stopping service</string>
@@ -160,7 +160,7 @@
     <string name="menu_sub_check_update">Check new version</string>
     <string name="menu_sub_backup">Backup data</string>
     <string name="menu_sub_logcat">View logs</string>
-    <string name="menu_sub_about">About ArasClient</string>
+    <string name="menu_sub_about">About Tesla Vpn</string>
 
     <string name="export_include_subs">Include subscription links</string>
     <string name="export_include_subs_hint">Carry the subscription URLs so the receiver gets updates too</string>
@@ -760,7 +760,7 @@
     <string name="toast_connect_first_to_test">Connect first, then tap here to test the server</string>
     <string name="bar_test">Test</string>
     <string name="title_test_single">Test this server</string>
-    <string name="setup_title">Welcome to ArasClient</string>
+    <string name="setup_title">Welcome to Tesla Vpn</string>
     <string name="setup_subtitle">Pick a few quick preferences. You can change these later in settings.</string>
     <string name="setup_auto_sort">Auto-sort servers by ping after testing</string>
     <string name="setup_auto_connect">Auto-connect to the fastest server on launch</string>
@@ -788,4 +788,14 @@
     <string name="share_v2ray_nekoray_help">Exports this Aether tunnel as a Nekoray profile for Linux. Install the Aras Aether helper on Linux once, then import the copied link from the clipboard in Nekoray. The link includes your WARP credentials. It runs independently of this phone; it is not a VMess/VLESS link.</string>
     <string name="share_v2ray_missing_identity">Connect this Aether profile successfully once before exporting its WARP identity.</string>
     <string name="share_v2ray_unsupported">This export supports WG and MASQUE Aether profiles, including Psiphon. Tor, two-hop tunnels, custom commands and proxy chains are not supported.</string>
+    <string name="tesla_connected">Connected</string>
+    <string name="tesla_disconnected">Disconnected</string>
+    <string name="tesla_tap_to_connect">Your connection, one tap away</string>
+    <string name="tesla_import_hint">Import a configuration to get started.</string>
+    <string name="tesla_tap_disconnect">Tap the power button to disconnect or cancel</string>
+    <string name="tesla_ready">Tap the power button to connect</string>
+    <string name="tesla_replace_config">Replace configuration</string>
+    <string name="tesla_import_config">Import configuration</string>
+    <string name="tesla_connect">Connect</string>
+    <string name="tesla_disconnect">Disconnect</string>
 </resources>

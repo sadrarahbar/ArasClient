@@ -285,7 +285,7 @@ object AngConfigManager {
             if (newSubIds.isEmpty()) {
                 newSubIds = parseBatchSubscription(Utils.decode(server))
             }
-            BatchImportResult(configCount = count, newSubscriptionIds = newSubIds)
+            BatchImportResult(configCount = if (AppConfig.SINGLE_PROFILE_MODE) count.coerceAtMost(1) else count, newSubscriptionIds = newSubIds)
         } catch (e: ProfileStorageException) {
             LogUtil.e(AppConfig.TAG, "Failed to store imported profiles", e)
             BatchImportResult()
@@ -349,7 +349,7 @@ object AngConfigManager {
                     .toList()
             }
             links.distinct()
-                .reversed()
+                .let { if (AppConfig.SINGLE_PROFILE_MODE) it else it.reversed() }
                 .forEach {
                     val config = parseConfig(it, subid, subItem)
                     if (config != null) {

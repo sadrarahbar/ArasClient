@@ -434,10 +434,10 @@ class MainViewModel(
                 initialPageReady.await()
                 delay(32)
                 dataSource.initAssets()
-                FreeSubManager.sync(getApplication())  // suspend, syncMutex-serialized
+                if (!AppConfig.SINGLE_PROFILE_MODE) FreeSubManager.sync(getApplication())  // suspend, syncMutex-serialized
                 // The Free group is created by the sync above — refresh tabs
                 setupGroupTab(forceRefresh = true).join()
-                dataSource.syncSubscriptions()
+                if (!AppConfig.SINGLE_PROFILE_MODE) dataSource.syncSubscriptions()
                 FreeSubManager.protectAll()  // covers sub-fetch imports
                 refreshGeoIPIfDue()
             } catch (cancelled: CancellationException) {
@@ -588,6 +588,7 @@ class MainViewModel(
                 groups.forEach { mutableServersForGroup(it.id) }
 
                 if (groups.isEmpty()) {
+                    if (!initialPageReady.isCompleted) initialPageReady.complete(Unit)
                     cacheMutex.withLock { groupDataCache.clear() }
                     return@launch
                 }

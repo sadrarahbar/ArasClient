@@ -254,7 +254,10 @@ object ArasExportImportManager {
             linkMap[link.guid] = newGuid
         }
 
-        payload.subscriptions.forEach { group ->
+        val groups = if (AppConfig.SINGLE_PROFILE_MODE) {
+            payload.subscriptions.filter { it.configs.isNotEmpty() }.take(1)
+        } else payload.subscriptions
+        groups.forEach { group ->
             val subId = if (group.subscriptionId != null && linkMap.containsKey(group.subscriptionId)) {
                 linkMap[group.subscriptionId]!!
             } else if (group.remarks.isNotBlank()) {
@@ -269,10 +272,11 @@ object ArasExportImportManager {
                     )
             } else {
                 MmkvManager.encodeSubscription(
-                    "", SubscriptionItem(remarks = "ArasClient")
+                    "", SubscriptionItem(remarks = "Tesla Vpn")
                 )
             }
-            group.configs.forEach { cfg ->
+            val configs = if (AppConfig.SINGLE_PROFILE_MODE) group.configs.take(1) else group.configs
+            configs.forEach { cfg ->
                 val profile = cfg.profile
                 profile.subscriptionId = subId
                 val guid = MmkvManager.encodeServerConfig("", profile)

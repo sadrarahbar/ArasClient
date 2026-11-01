@@ -196,7 +196,7 @@ class MainActivity : HelperBaseComponentActivity() {
         }
         val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
 
-        if (showOnboarding) {
+        if (showOnboarding && !AppConfig.SINGLE_PROFILE_MODE) {
             FirstRunSetupDialog(
                 onDismiss = {
                     MmkvManager.encodeSettings(AppConfig.PREF_ONBOARDING_DONE, true)
@@ -212,7 +212,7 @@ class MainActivity : HelperBaseComponentActivity() {
                     !MmkvManager.decodeSettingsBool(AppConfig.PREF_FREE_SUB_ASKED, false)
             )
         }
-        if (showFreeSubAsk) {
+        if (showFreeSubAsk && !AppConfig.SINGLE_PROFILE_MODE) {
             FreeSubAskDialog { showFreeSub ->
                 MmkvManager.encodeSettings(AppConfig.PREF_SHOW_FREE_SUB, showFreeSub)
                 MmkvManager.encodeSettings(AppConfig.PREF_FREE_SUB_ASKED, true)
@@ -222,7 +222,7 @@ class MainActivity : HelperBaseComponentActivity() {
                 mainViewModel.setupGroupTab(forceRefresh = true)
             }
         }
-        if (!showOnboarding && showQuickSettingsInfo) {
+        if (!showOnboarding && showQuickSettingsInfo && !AppConfig.SINGLE_PROFILE_MODE) {
             val dismissQuickSettingsInfo = {
                 MmkvManager.encodeSettings(
                     AppConfig.PREF_QUICK_SETTINGS_TILES_INFO_SHOWN,
@@ -544,12 +544,20 @@ class MainActivity : HelperBaseComponentActivity() {
     private fun importConfigLocal() {
         launchFileChooser { uri ->
             if (uri == null) return@launchFileChooser
-            try {
-                contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
-                    mainViewModel.onAction(MainAction.ImportBatchConfig(reader.readText()))
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: return@launch
+                    val arasc = com.aras.client.core.ArascContainer.peekHeader(bytes) !=
+                        com.aras.client.core.ArascContainer.Header.NotArasc
+                    withContext(Dispatchers.Main) {
+                        if (arasc) handleArascAttempt(bytes, null)
+                        else mainViewModel.onAction(MainAction.ImportBatchConfig(bytes.toString(Charsets.UTF_8)))
+                    }
+                } catch (e: Exception) {
+                    LogUtil.e(AppConfig.TAG, "Failed to read content from URI", e)
+                    withContext(Dispatchers.Main) { toastError(R.string.toast_failure) }
                 }
-            } catch (e: Exception) {
-                LogUtil.e(AppConfig.TAG, "Failed to read content from URI", e)
             }
         }
     }

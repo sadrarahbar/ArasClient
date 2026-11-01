@@ -35,6 +35,10 @@ object SubscriptionUpdater {
         context: Context = AngApplication.application,
         forceReschedule: Boolean = false
     ) {
+        if (AppConfig.SINGLE_PROFILE_MODE) {
+            MmkvManager.decodeSubscriptions().forEach { cancelOne(context, it.guid) }
+            return
+        }
         val existingWorkPolicy =
             if (forceReschedule) {
                 ExistingPeriodicWorkPolicy.REPLACE
@@ -64,6 +68,7 @@ object SubscriptionUpdater {
      * Call from: SubEditActivity after saving, after a manual update (to reset the timer).
      */
     fun syncOne(context: Context = AngApplication.application, subId: String) {
+        if (AppConfig.SINGLE_PROFILE_MODE) { cancelOne(context, subId); return }
         scheduleOne(
             context = context,
             subId = subId,
@@ -171,6 +176,7 @@ object SubscriptionUpdater {
 
         @SuppressLint("MissingPermission")
         override suspend fun doWork(): Result {
+            if (AppConfig.SINGLE_PROFILE_MODE) return Result.success()
             val subId = inputData.getString(KEY_SUB_ID)
             LogUtil.i(AppConfig.TAG, "SubscriptionUpdater update starting via Service: $subId")
 

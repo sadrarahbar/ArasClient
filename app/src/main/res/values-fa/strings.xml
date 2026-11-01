@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">ArasClient</string>
+    <string name="app_name" translatable="false">Tesla Vpn</string>
     <string name="app_widget_name">اتصال / قطع</string>
     <string name="app_tile_name">آراس: اتصال / قطع</string>
     <string name="app_tile_first_use">برای اولین استفاده از این قابلیت، لطفاً ابتدا از داخل برنامه یک سرور اضافه کنید</string>
@@ -597,7 +597,7 @@
     <string name="toast_connect_first_to_test">اول وصل شو، بعد برای تست سرور اینجا لمس کن</string>
     <string name="bar_test">تست</string>
     <string name="title_test_single">تست این سرور</string>
-    <string name="setup_title">به ArasClient خوش آمدید</string>
+    <string name="setup_title">به Tesla Vpn خوش آمدید</string>
     <string name="setup_subtitle">چند تنظیم سریع را انتخاب کنید. بعداً در تنظیمات قابل تغییر است.</string>
     <string name="setup_auto_sort">مرتب‌سازی خودکار سرورها بر اساس پینگ</string>
     <string name="setup_auto_connect">اتصال خودکار به سریع‌ترین سرور هنگام اجرا</string>
@@ -617,7 +617,7 @@
     <string name="quick_connect_success">اشتراک به‌روز شد و متصل شد</string>
     <string name="quick_connect_failure">به‌روزرسانی و اتصال ناموفق بود</string>
     <string name="quick_connect_no_server">هیچ سرور در دسترسی یافت نشد</string>
-    <string name="quick_connect_vpn_permission">ابتدا اجازه دسترسی VPN را به ArasClient بدهید</string>
+    <string name="quick_connect_vpn_permission">ابتدا اجازه دسترسی VPN را به Tesla Vpn بدهید</string>
     <string name="quick_connect_already_running">یک به‌روزرسانی از قبل در حال اجراست</string>
     <string name="protected_config_hidden">کانفیگ محافظت‌شده</string>
     <string name="acc_auto_scroll">پیمایش خودکار به بهترین سرور (کلید)</string>
@@ -774,7 +774,7 @@
     <string name="menu_sub_check_update">بررسی نسخه جدید</string>
     <string name="menu_sub_backup">پشتیبان‌گیری</string>
     <string name="menu_sub_logcat">مشاهده گزارش‌ها</string>
-    <string name="menu_sub_about">درباره ArasClient</string>
+    <string name="menu_sub_about">درباره Tesla Vpn</string>
     <string name="title_connection_stats">آمار اتصال</string>
     <string name="stats_connections">اتصال‌ها</string>
     <string name="stats_total_time">مجموع زمان اتصال</string>
@@ -793,4 +793,14 @@
     <string name="share_v2ray_nekoray_help">این تونل Aether به پروفایل Nekoray برای لینوکس تبدیل می‌شود. ابتدا ابزار Aras Aether را یک‌بار روی لینوکس نصب کنید، سپس لینک کپی‌شده را از کلیپ‌بورد در Nekoray وارد کنید. لینک شامل اطلاعات محرمانهٔ WARP شماست. اتصال مستقل از گوشی است؛ این خروجی لینک VMess یا VLESS نیست.</string>
     <string name="share_v2ray_missing_identity">پیش از خروجی گرفتن، یک‌بار با این پروفایل Aether با موفقیت متصل شوید تا هویت WARP ساخته شود.</string>
     <string name="share_v2ray_unsupported">این خروجی برای WG و MASQUE، همراه با سایفون نیز، پشتیبانی می‌شود. تور، تونل دو مرحله‌ای، فرمان سفارشی و زنجیرهٔ پراکسی پشتیبانی نمی‌شوند.</string>
+    <string name="tesla_connected">متصل</string>
+    <string name="tesla_disconnected">قطع</string>
+    <string name="tesla_tap_to_connect">اتصال شما، با یک لمس</string>
+    <string name="tesla_import_hint">برای شروع یک کانفیگ وارد کنید.</string>
+    <string name="tesla_tap_disconnect">برای قطع یا لغو اتصال، دکمه را لمس کنید</string>
+    <string name="tesla_ready">برای اتصال، دکمه را لمس کنید</string>
+    <string name="tesla_replace_config">جایگزینی کانفیگ</string>
+    <string name="tesla_import_config">وارد کردن کانفیگ</string>
+    <string name="tesla_connect">اتصال</string>
+    <string name="tesla_disconnect">قطع اتصال</string>
 </resources>

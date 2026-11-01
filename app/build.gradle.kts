@@ -24,9 +24,14 @@ android {
         versionName = "1.8.71"
 
         val abiFilterList = (properties["ABI_FILTERS"] as? String)?.split(';')
+        // One installable APK for boxes whose Android firmware may be 32- or 64-bit.
+        val singleApk = (properties["UNIVERSAL_APK"] as? String).toBoolean()
+        if (singleApk && !abiFilterList.isNullOrEmpty()) {
+            ndk { abiFilters.addAll(abiFilterList) }
+        }
         splits {
             abi {
-                isEnable = true
+                isEnable = !singleApk
                 reset()
                 if (!abiFilterList.isNullOrEmpty()) {
                     include(*abiFilterList.toTypedArray())
@@ -101,7 +106,7 @@ android {
             .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
             .forEach { output ->
                 val abi = output.getFilter("ABI") ?: "universal"
-                output.outputFileName = "ArasClient_${variant.versionName}_${abi}.apk"
+                output.outputFileName = "TeslaVpn_${variant.versionName}_${abi}.apk"
                 output.versionCodeOverride =
                     variant.versionCode + (abiVersionCodes[abi] ?: 0)
             }
@@ -164,6 +169,8 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)
+    // Render the bundled Figma SVGs with their original radial gradient.
+    implementation("com.caverock:androidsvg-aar:1.4")
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
