@@ -26,6 +26,8 @@ captures/
 
 # Linux belongs to the Linux-Client branch; keep local files untracked here.
 /linux/
+/tools/nekoray/
+/docs/NEKORAY-EXPORT.fa.md
 
 # Local dependencies, outputs and caches
 .venv/
