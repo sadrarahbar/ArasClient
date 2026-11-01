@@ -16,3 +16,24 @@ keystore/
 .idea/
 .DS_Store
 captures/
+
+# Generated installers and archives (source assets stay tracked)
+/artifacts/
+*.apk
+*.aab
+*.apks
+*.xapk
+
+# Linux client dependencies, downloaded native cores and build outputs
+/linux/.venv/
+/linux/cores/
+dist/
+
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

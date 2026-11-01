@@ -1,0 +1,25 @@
+Tesla Vpn Linux uses these unmodified native components:
+
+Aether v2.4.0 (GNU AGPLv3):
+https://github.com/CluvexStudio/Aether/tree/v2.4.0
+
+Psiphon tunnel core, bundled by Aether v2.4.0:
+https://github.com/Psiphon-Labs/psiphon-tunnel-core
+The bootstrap server entries come from this repository's public Android asset.
+
+Xray v26.3.27 (Mozilla Public License 2.0):
+https://github.com/XTLS/Xray-core/tree/v26.3.27
+
+NekoBox sing-box core, Nekoray 4.0.1 (GNU GPLv3):
+https://github.com/MatsuriDayo/nekoray/tree/4.0.1
+https://github.com/MatsuriDayo/sing-box
+
+Python 3 (PSF license): https://www.python.org/psf/license/
+PyQt6 6.10.2 (GPLv3 for this build): https://www.riverbankcomputing.com/software/pyqt/
+Qt 6: https://www.qt.io/licensing/open-source-lgpl-obligations
+zxing-cpp: https://github.com/zxing-cpp/zxing-cpp (Apache-2.0)
+Pillow: https://github.com/python-pillow/Pillow (HPND)
+PyInstaller: https://github.com/pyinstaller/pyinstaller (GPL-2.0 with bootloader exception)
+
+Sources and pinned dependency hashes for this application are supplied with its project.
+No user profiles, account files, private keys or test identities are included in the bundle.
