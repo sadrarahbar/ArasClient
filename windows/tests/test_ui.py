@@ -39,6 +39,7 @@ class UITests(unittest.TestCase):
             self.assertFalse(w.glow.pixmap().isNull())
             self.assertFalse(w.power.symbol.isNull())
             self.assertEqual(w.title.font().family(),"Geologica")
+            self.assertGreaterEqual(w.hint.width(),w.hint.fontMetrics().horizontalAdvance(w.hint.text()))
             import_bottom=w.import_button.mapTo(w,QPoint(0,0)).y()+w.import_button.height()
             self.assertEqual(w.height()-import_bottom,36)
             w.sheet.open();w.sheet.animation.setCurrentTime(200);app.processEvents()

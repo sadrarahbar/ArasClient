@@ -222,8 +222,8 @@ class Window(QMainWindow):
         self.title = QLabel("Tesla Vpn", content)
         self.title.setGeometry(76, 111, 298, 51); self.title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.title.setFont(design_font(40, QFont.Weight.Bold)); self.title.setStyleSheet("color:white;")
-        self.hint = QLabel(content); self.hint.setGeometry(76, 166, 298, 25)
-        self.hint.setFont(design_font(20)); self.hint.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.hint = QLabel(content); self.hint.setGeometry(65, 166, 321, 25)
+        self.hint.setFont(design_font(20)); self.hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.mode_box = QFrame(content); self.mode_box.setGeometry(131, 223, 188, 68)
         self.tun = ModeRadioButton("System tunnel"); self.tun.setParent(self.mode_box); self.tun.move(0, 0); self.tun.setChecked(True)
