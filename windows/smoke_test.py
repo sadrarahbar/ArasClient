@@ -72,6 +72,12 @@ def packaged_data_path(exe, state):
 
 
 def main():
+    import struct
+    exe_path=ROOT.parent/'artifacts/windows/TeslaVpn/TeslaVpn.exe'
+    image=exe_path.read_bytes();pe=struct.unpack_from('<I',image,0x3c)[0]
+    if struct.unpack_from('<H',image,pe+24+68)[0]!=2:
+        raise RuntimeError('Application must use the GUI subsystem, not a console.')
+    print('EXE has the windowless GUI subsystem; no console is allocated')
     cores=ROOT/'cores'
     for name,flag in [('aether.exe','--version'),('xray.exe','version'),('sing-box.exe','version')]:
         run([cores/name,flag]);print(name+' executes on Windows')

@@ -97,3 +97,29 @@ class Job:
     def close(self):
         if getattr(self, 'handle', None):
             self.kernel.CloseHandle(self.handle); self.handle = None
+
+
+def helper_stdio():
+    """Windowed PyInstaller has no Python stdio; reopen inherited IPC pipe handles.
+
+    Never AllocConsole/AttachConsole: the GUI and its helpers remain windowless.
+    Duplicate handles so Python owns only its copies, not the OS standard handles.
+    """
+    if sys.platform != 'win32': return
+    import io, msvcrt
+    kernel = ctypes.WinDLL('kernel32',use_last_error=True)
+    kernel.GetStdHandle.argtypes=[wintypes.DWORD];kernel.GetStdHandle.restype=wintypes.HANDLE
+    kernel.GetCurrentProcess.restype=wintypes.HANDLE
+    kernel.DuplicateHandle.argtypes=[wintypes.HANDLE,wintypes.HANDLE,wintypes.HANDLE,
+        ctypes.POINTER(wintypes.HANDLE),wintypes.DWORD,wintypes.BOOL,wintypes.DWORD]
+    process=kernel.GetCurrentProcess()
+    for name,number,mode,flags in [('stdin',-10,'r',os.O_RDONLY),('stdout',-11,'w',os.O_WRONLY),('stderr',-12,'w',os.O_WRONLY)]:
+        original=kernel.GetStdHandle(number & 0xffffffff)
+        if not original or original==ctypes.c_void_p(-1).value:
+            raise OSError('The helper requires inherited IPC pipes.')
+        duplicate=wintypes.HANDLE()
+        if not kernel.DuplicateHandle(process,original,process,ctypes.byref(duplicate),0,False,2):
+            raise ctypes.WinError(ctypes.get_last_error())
+        fd=msvcrt.open_osfhandle(int(duplicate.value),flags|os.O_BINARY)
+        stream=io.TextIOWrapper(os.fdopen(fd,mode+'b',buffering=0),encoding='utf-8',line_buffering=mode=='w')
+        setattr(sys,name,stream)

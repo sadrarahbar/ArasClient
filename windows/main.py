@@ -21,6 +21,9 @@ def main():
     parser.add_argument("--wait-parent", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--restore-proxy", action="store_true", help=argparse.SUPPRESS)
     options = parser.parse_args()
+    if options.tun_helper or options.backend_run or options.http_bridge:
+        from tesla_vpn.win32 import helper_stdio
+        helper_stdio()
     if options.wait_parent:
         from tesla_vpn.win32 import wait_for_parent
         wait_for_parent(options.wait_parent)

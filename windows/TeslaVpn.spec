@@ -1,4 +1,4 @@
-# Explicit spec avoids CLI-generated quoting bugs for hide_console on Windows.
+# Windowed PE subsystem: neither the GUI nor helper invocations allocate a console.
 from pathlib import Path
 root = Path(SPECPATH)
 a = Analysis(
@@ -10,7 +10,7 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [], exclude_binaries=True, name='TeslaVpn',
     debug=False, bootloader_ignore_signals=False, strip=False, upx=False,
-    console=True, hide_console='hide-early',
+    console=False,
     icon=str(root / 'build/icon.ico'), version=str(root / 'version.txt'),
     manifest=str(root / 'app.manifest'),
 )
