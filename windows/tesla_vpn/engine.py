@@ -32,6 +32,8 @@ class Engine(QObject):
         self.probe_timer.timeout.connect(lambda: self.reply.abort() if self.reply else None)
         self.bridge_timer = QTimer(self); self.bridge_timer.setSingleShot(True)
         self.bridge_timer.timeout.connect(lambda: self._fail('The local HTTP proxy did not become ready.') if self.state == 'checking' else None)
+        self.result_timer = QTimer(self); self.result_timer.setSingleShot(True)
+        self.result_timer.setInterval(5000); self.result_timer.timeout.connect(self._clear_test_result)
 
     @property
     def busy(self): return self.state in ('starting', 'checking', 'stopping')
@@ -149,15 +151,15 @@ class Engine(QObject):
         self.reply = None; reply.deleteLater()
         if self.state == 'stopping': self.testing = False; return
         if not ok and attempt == 0: self._probe(purpose,direct,1); return
-        self.connected_at = None
         self.testing = False
         if not ok:
-            if purpose == 'manual': self.message = 'Internet check failed. The tunnel is still running.'; self.changed.emit()
+            if purpose == 'manual': self._show_test_result('Internet check failed. The tunnel is still running.')
             else: self._fail('The tunnel answered, but HTTPS internet access could not be verified.')
             return
         if purpose == 'startup-direct' and country and self.proxy_country and country != self.proxy_country:
             self._fail('System VPN exit differs from the proxy exit. Disconnect other VPNs and retry.'); return
-        self.exit_country = country; self.latency = elapsed
+        if country: self.exit_country = country
+        self.latency = elapsed
         result = f'Connection succeeded in {elapsed} ms' + (f' · Exit: {country}' if country else '')
         if purpose == 'startup' and self.mode == 'tun':
             self.proxy_country = country; self.message = 'Applying system VPN routes…'; self.changed.emit()
@@ -166,7 +168,7 @@ class Engine(QObject):
             self.pending_result = result
             self.message = 'Preparing local proxy…'; self.changed.emit()
             self._start_bridge()
-        else: self.message = result; self.changed.emit()
+        else: self._show_test_result(result)
 
     def _start_bridge(self):
         proc = QProcess(self); self.bridge = proc; self.bridge_buffer = b''
@@ -208,8 +210,19 @@ class Engine(QObject):
             if self.state == 'stopping': self._stopped()
             else: self._fail('Could not start the local HTTP proxy.')
 
+    def _show_test_result(self, message):
+        self.message = message
+        self.result_timer.start(5000)
+        self.changed.emit()
+
+    def _clear_test_result(self):
+        if self.state == 'connected' and not self.testing:
+            self.message = ''
+            self.changed.emit()
+
     def test(self):
         if self.state != 'connected' or self.testing: return
+        self.result_timer.stop()
         self.message = 'Testing…'; self._probe('manual',direct=self.mode == 'tun')
 
     def _fail(self, message):
@@ -254,6 +267,8 @@ class Engine(QObject):
         if state == "connected" and self.state != "connected": self.connected_at = time.monotonic()
         elif state != "connected": self.connected_at = None
         self.state=state; self.message=message
+        if state == 'connected': self.result_timer.start(5000)
+        else: self.result_timer.stop()
         self.changed.emit()
         # Snapshot writes/fsync can be slow on Windows/antivirus; never paint-block.
         data=json.dumps({'state':state,'mode':self.mode,'message':message,'updated':time.time()}).encode()
