@@ -21,6 +21,7 @@ class Engine(QObject):
         self.root = root
         self.state = "idle"
         self.message = ""
+        self.connected_at = None
         self.testing = False
         self.latency = None
         self.exit_country = None
@@ -196,7 +197,14 @@ class Engine(QObject):
         message, self.error_after_stop = self.error_after_stop, ""
         self._set("error" if message else "idle", message or "Disconnected")
 
+    @property
+    def session_seconds(self):
+        if self.state != "connected" or self.connected_at is None: return 0
+        return max(0, int(time.monotonic() - self.connected_at))
+
     def _set(self, state, message):
+        if state == "connected" and self.state != "connected": self.connected_at = time.monotonic()
+        elif state != "connected": self.connected_at = None
         self.state = state; self.message = message
         try:
             private_write(self.root / "status.json", json.dumps({"state": state, "mode": self.mode,

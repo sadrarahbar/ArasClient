@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 import shutil
 import xml.etree.ElementTree as ET
-from PyQt6.QtCore import Qt, QRectF, QTimer, QProcess, QPoint, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import QLocale, Qt, QRectF, QTimer, QProcess, QPoint, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap, QIcon, QTransform, QFont, QFontDatabase, QImageReader
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QAbstractButton, QFrame, QRadioButton, QButtonGroup, QFileDialog, QMessageBox,
@@ -122,6 +122,7 @@ class ModeRadioButton(QRadioButton):
 
     def paintEvent(self, event):
         p = QPainter(self); p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not self.isEnabled(): p.setOpacity(0.35)
         p.setPen(QPen(QColor("white"), 1.4 if self.isChecked() else 1))
         p.setBrush(Qt.BrushStyle.NoBrush); p.drawEllipse(QRectF(.7, .7, 26.6, 26.6))
         if self.isChecked():
@@ -261,11 +262,21 @@ class Window(QMainWindow):
         self.power.clicked.connect(self.toggle)
         self.status = QLabel(content); self.status.setGeometry(95, 540, 261, 25)
         self.status.setFont(design_font(20, QFont.Weight.Medium)); self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.test_button = QPushButton("Check connectivity", content); self.test_button.setGeometry(128, 581, 195, 37)
+        self.session_time = QLabel(content); self.session_time.setGeometry(65, 577, 321, 25)
+        self.session_time.setFont(design_font(20)); self.session_time.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.country_row = QWidget(content); self.country_row.setGeometry(45, 611, 361, 25)
+        country_layout = QHBoxLayout(self.country_row); country_layout.setContentsMargins(0, 0, 0, 0)
+        country_layout.setSpacing(8); country_layout.addStretch()
+        self.country_flag = QLabel(); self.country_flag.setFixedSize(24, 18)
+        self.country_name = QLabel(); self.country_name.setFont(design_font(17))
+        country_layout.addWidget(self.country_flag); country_layout.addWidget(self.country_name); country_layout.addStretch()
+        self.session_timer = QTimer(self); self.session_timer.setInterval(1000)
+        self.session_timer.timeout.connect(self.update_session)
+        self.test_button = QPushButton("Check connectivity", content); self.test_button.setGeometry(128, 652, 195, 37)
         self.test_button.setFont(design_font(18, QFont.Weight.Light)); self.test_button.clicked.connect(self.engine.test)
         self.test_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.test_button.setStyleSheet("QPushButton {color:#98ABD5;background:transparent;border:1px solid #98ABD5;border-radius:18px;padding:0;} QPushButton:hover {background:#19253A;} QPushButton:focus {border:2px solid #98ABD5;}")
-        self.message = QLabel(content); self.message.setGeometry(45, 635, 361, 100)
+        self.message = QLabel(content); self.message.setGeometry(45, 706, 361, 60)
         self.message.setFont(design_font(14)); self.message.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
         self.message.setWordWrap(True)
         self.import_button = QPushButton(content); self.import_button.setGeometry(110, 779, 238, 37)
@@ -277,18 +288,34 @@ class Window(QMainWindow):
         self.render()
         if self.initial_error: QTimer.singleShot(200, lambda: QMessageBox.warning(self, "Tesla Vpn", self.initial_error))
 
+    def update_session(self):
+        seconds = self.engine.session_seconds
+        hours, remainder = divmod(seconds, 3600); minutes, seconds = divmod(remainder, 60)
+        self.session_time.setText(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+        code = (self.engine.exit_country or "").upper()
+        territory = QLocale.codeToTerritory(code)
+        known = len(code) == 2 and territory.value != 0
+        name = QLocale.territoryToString(territory) if known else "Unknown country"
+        self.country_name.setText(self.country_name.fontMetrics().elidedText(name, Qt.TextElideMode.ElideRight, 310))
+        self.country_name.setToolTip(name)
+        filename = resources() / "assets/flags" / (code.lower() + ".svg")
+        self.country_flag.setVisible(known and filename.is_file())
+        if known and filename.is_file():
+            self.country_flag.setPixmap(QIcon(str(filename)).pixmap(24, 18))
+
     def render(self):
         engine = self.engine; has = self.profile is not None
         self.hint.setText("Your connection, one tap away" if has else "Import a configuration to start")
-        self.import_button.show()
+        connected = engine.state == "connected"
+        self.import_button.setVisible(not connected)
         self.power.setVisible(has); self.glow.setVisible(has)
-        self.status.setVisible(has); self.test_button.setVisible(has); self.mode_box.setVisible(has)
+        self.status.setVisible(has); self.test_button.setVisible(has and connected); self.mode_box.setVisible(has)
         self.power.status(engine.state == "connected", engine.busy)
         self.glow.set_color(self.power.color)
         self.power.setEnabled(engine.state != "stopping")
         text, color = {"idle": ("Disconnected", RED), "connected": ("Connected", GREEN), "error": ("Connection failed", RED),
                        "starting": ("Connecting…", AMBER), "checking": ("Connecting…", AMBER), "stopping": ("Disconnecting…", AMBER)}[engine.state]
-        self.status.setText(text + (" · TUN" if engine.mode == "tun" else " · Proxy") if engine.state == "connected" else text); self.status.setStyleSheet(f"color:{color};")
+        self.status.setText(text); self.status.setStyleSheet(f"color:{color};")
         detail = engine.message if has else "Only one configuration is kept on this device."
         if detail.strip().casefold() == text.casefold() or detail == "Configuration imported. Ready to connect.": detail = ""
         self.message.setText(detail)
@@ -296,6 +323,12 @@ class Window(QMainWindow):
         self.test_button.setText("Testing…" if engine.testing else "Check connectivity")
         self.test_button.setEnabled(engine.state == "connected" and not engine.testing)
         self.mode_box.setEnabled(engine.state in ("idle", "error"))
+        self.session_time.setVisible(has and connected); self.country_row.setVisible(has and connected)
+        if connected:
+            if not self.session_timer.isActive(): self.session_timer.start()
+            self.update_session()
+        else:
+            self.session_timer.stop(); self.session_time.clear()
         self.import_button.setText("Replace configuration" if has else "Import configuration")
         self.import_button.setEnabled(engine.state in ("idle", "error"))
 
