@@ -28,7 +28,7 @@ def main():
         '--distpath',str(out),'--workpath',str(build/'pyinstaller'),
         str(ROOT/'TeslaVpn.spec')],check=True)
     shutil.copy2(ROOT/'README.fa.md',out/'TeslaVpn/README.fa.md')
-    zipname=out/'TeslaVpn-1.0.3-Windows-x64.zip'
+    zipname=out/'TeslaVpn-1.0.4-Windows-x64.zip'
     with zipfile.ZipFile(zipname,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as z:
         for p in (out/'TeslaVpn').rglob('*'):
             if p.is_file():z.write(p,p.relative_to(out))

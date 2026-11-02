@@ -149,6 +149,7 @@ class Engine(QObject):
         self.reply = None; reply.deleteLater()
         if self.state == 'stopping': self.testing = False; return
         if not ok and attempt == 0: self._probe(purpose,direct,1); return
+        self.connected_at = None
         self.testing = False
         if not ok:
             if purpose == 'manual': self.message = 'Internet check failed. The tunnel is still running.'; self.changed.emit()
@@ -244,7 +245,14 @@ class Engine(QObject):
         message,self.error_after_stop = self.error_after_stop,''
         self._set('error' if message else 'idle',message or 'Disconnected')
 
+    @property
+    def session_seconds(self):
+        if self.state != "connected" or self.connected_at is None: return 0
+        return max(0, int(time.monotonic() - self.connected_at))
+
     def _set(self, state, message):
+        if state == "connected" and self.state != "connected": self.connected_at = time.monotonic()
+        elif state != "connected": self.connected_at = None
         self.state=state; self.message=message
         self.changed.emit()
         # Snapshot writes/fsync can be slow on Windows/antivirus; never paint-block.
