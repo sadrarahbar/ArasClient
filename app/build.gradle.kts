@@ -20,8 +20,8 @@ android {
         applicationId = "com.aras.client"
         minSdk = 24
         targetSdk = 37
-        versionCode = 1880
-        versionName = "1.8.72"
+        versionCode = 1890
+        versionName = "1.0.3"
 
         val abiFilterList = (properties["ABI_FILTERS"] as? String)?.split(';')
         // One installable APK for boxes whose Android firmware may be 32- or 64-bit.
@@ -106,7 +106,12 @@ android {
             .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
             .forEach { output ->
                 val abi = output.getFilter("ABI") ?: "universal"
-                output.outputFileName = "TeslaVpn_${variant.versionName}_${abi}.apk"
+                val architecture = when (abi) {
+                    "arm64-v8a" -> "arm"
+                    "armeabi-v7a" -> "arm32"
+                    else -> abi
+                }
+                output.outputFileName = "TeslaVpn_android_${architecture}_${variant.versionName}.apk"
                 output.versionCodeOverride =
                     variant.versionCode + (abiVersionCodes[abi] ?: 0)
             }
