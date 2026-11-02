@@ -12,6 +12,17 @@
 
 ---
 
+## مستندات فنی فارسی
+
+[راهنمای مرکزی ArasClient و Tesla Vpn](docs/fa/README.md) شامل نقش چهار برنچ،
+استک، سیستم‌عامل‌های هدف، معماری، پروتکل‌ها، دستورالعمل توسعه برای ایجنت‌ها و
+برنامه‌نویس‌ها، آزمون و انتشار و نقشهٔ توسعهٔ آینده است.
+
+[main](docs/fa/BRANCH-MAIN.md) · [Android-Client](docs/fa/BRANCH-ANDROID.md) ·
+[Linux-Client](docs/fa/BRANCH-LINUX.md) · [Windows-Client](docs/fa/BRANCH-WINDOWS.md)
+
+---
+
 ## 🧬 Based on PattNG
 
 ArasClient is a **fork of [PattNG](https://github.com/patterniha/PattNG)**, which itself is a fork of [2dust/v2rayNG](https://github.com/2dust/v2rayNG).
