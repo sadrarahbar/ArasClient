@@ -67,4 +67,6 @@ async def handle(reader, writer, socks_port):
 
 async def serve(socks_port, http_port):
     server = await asyncio.start_server(lambda r, w: handle(r, w, socks_port), "127.0.0.1", http_port)
+    import json
+    print(json.dumps({"event": "http-ready"}), flush=True)
     async with server: await server.serve_forever()

@@ -23,4 +23,4 @@ fi
 cp "$linux_dir/install.sh" "$project_dir/artifacts/linux/TeslaVpn/install.sh"
 cp "$linux_dir/README.fa.md" "$project_dir/artifacts/linux/TeslaVpn/README.fa.md"
 cp "$linux_dir/assets/app-logo.svg" "$project_dir/artifacts/linux/TeslaVpn/icon.svg"
-tar -czf "$project_dir/artifacts/linux/TeslaVpn-1.0.1-linux-x86_64.tar.gz" -C "$project_dir/artifacts/linux" TeslaVpn
+tar -czf "$project_dir/artifacts/linux/TeslaVpn-1.0.2-linux-x86_64.tar.gz" -C "$project_dir/artifacts/linux" TeslaVpn

@@ -1,201 +1,260 @@
-"""Qt event-driven connection lifecycle and end-to-end HTTPS verification."""
+"""Nonblocking Qt connection lifecycle; file/desktop proxy operations use a serial worker."""
 import json
 import os
+import signal
 import re
 from pathlib import Path
-import signal
-import socket
 import time
-from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, QUrl, pyqtSignal
-from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkProxy, QNetworkRequest, QNetworkReply
+from PyQt6.QtCore import QObject, QProcess, QTimer, QUrl, pyqtSignal
+from PyQt6.QtNetwork import QTcpSocket, QNetworkAccessManager, QNetworkProxy, QNetworkRequest, QNetworkReply
 from .profiles import private_write
 from .runtime import command, free_port, prepare
 from .system_proxy import SystemProxy
+from .tasks import Tasks
 
 
 class Engine(QObject):
     changed = pyqtSignal()
     notice = pyqtSignal(str)
+
     def __init__(self, root: Path):
         super().__init__()
         self.root = root
-        self.state = "idle"
-        self.message = ""
-        self.connected_at = None
-        self.testing = False
-        self.latency = None
-        self.exit_country = None
-        self.proxy_country = None
-        self.mode = "tun"
-        self.core = None
-        self.bridge = None
-        self.reply = None
-        self.error_after_stop = ""
-        self.buffer = b""
-        self.proxy = SystemProxy(root)
+        self.state = 'idle'; self.message = ''; self.testing = False
+        self.latency = self.exit_country = self.proxy_country = None
+        self.mode = 'tun'; self.core = self.bridge = self.reply = None
+        self.error_after_stop = ''; self.buffer = b''
+        self.proxy = SystemProxy(root); self.tasks = Tasks(self)
+        self.epoch = 0; self.restore_pending = False
+        self.socks_check = None; self.bridge_buffer = b''; self.pending_result = None
         self.net = QNetworkAccessManager(self)
         self.poller = QTimer(self); self.poller.setInterval(500); self.poller.timeout.connect(self._poll)
         self.probe_timer = QTimer(self); self.probe_timer.setSingleShot(True)
         self.probe_timer.timeout.connect(lambda: self.reply.abort() if self.reply else None)
+        self.bridge_timer = QTimer(self); self.bridge_timer.setSingleShot(True)
+        self.bridge_timer.timeout.connect(lambda: self._fail('The local HTTP proxy did not become ready.') if self.state == 'checking' else None)
 
     @property
-    def busy(self): return self.state in ("starting", "checking", "stopping")
+    def busy(self): return self.state in ('starting', 'checking', 'stopping')
 
     def start(self, profile, mode):
-        if self.state not in ("idle", "error"): return
-        self.mode = mode; self.error_after_stop = ""; self.latency = None
+        if self.state not in ('idle', 'error'): return
+        self.epoch += 1; epoch = self.epoch
+        self.mode = mode; self.error_after_stop = ''; self.latency = None
         self.exit_country = self.proxy_country = None
+        self.pending_result = None; self.core = self.bridge = None
         self.port, self.http_port = free_port(), free_port()
         while self.http_port == self.port: self.http_port = free_port()
-        try:
+        self._set('starting', 'Authorizing system VPN…' if mode == 'tun' else 'Starting tunnel…')
+        def prepare_request():
             plan = prepare(profile, self.port, self.root)
-            request = self.root / "session.json"
-            private_write(request, json.dumps({"plan": plan.encode(), "port": self.port, "mode": mode}).encode())
-            self.core = QProcess(self)
-            self.core.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
-            self.core.readyReadStandardOutput.connect(self._read_output)
-            self.core.errorOccurred.connect(self._process_error)
-            self.core.finished.connect(self._finished)
-            self.buffer = b""
-            self._set("starting", "Authorizing system VPN…" if mode == "tun" else "Starting tunnel…")
-            args = ["pkexec", *command("--tun-helper", str(request))] if mode == "tun" else command("--backend-run", str(request))
-            self.core.start(args[0], args[1:])
+            request = self.root / 'session.json'
+            private_write(request, json.dumps({'plan': plan.encode(), 'port': self.port, 'mode': mode}).encode())
+            return request
+        def ready(request, error):
+            if epoch != self.epoch or self.state != 'starting': return
+            if error: self._fail(str(error)); return
+            proc = QProcess(self); self.core = proc
+            proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+            proc.readyReadStandardOutput.connect(lambda: self._read_output(proc))
+            proc.errorOccurred.connect(lambda e: self._process_error(proc, e))
+            proc.finished.connect(lambda *_: self._finished(proc))
+            self.buffer = b''
+            args = command('--tun-helper' if mode == 'tun' else '--backend-run', str(request))
+            if mode == 'tun': args = ['pkexec', *args]
             self.deadline = time.monotonic() + 240
-            self.poller.start()
-        except (ValueError, OSError) as e:
-            self._set("error", str(e))
+            proc.start(args[0], args[1:]); self.poller.start()
+        self.tasks.submit(prepare_request, ready)
+
+    def _dispose_socks(self, sock):
+        if self.socks_check is not sock: return
+        self.socks_check = None
+        sock.abort(); sock.deleteLater()
 
     def _poll(self):
-        if self.state != "starting": self.poller.stop(); return
+        if self.state != 'starting': self.poller.stop(); return
         if time.monotonic() > self.deadline:
-            self._fail("Connection timed out. Check the profile or try another network."); return
-        try:
-            with socket.create_connection(("127.0.0.1", self.port), timeout=.05) as s:
-                s.settimeout(.05); s.sendall(b"\x05\x01\x00")
-                if s.recv(2) != b"\x05\x00": return
-        except OSError: return
-        self.poller.stop(); self._set("checking", "Checking internet through the tunnel…")
-        self._probe("startup", direct=False)
+            self._fail('Connection timed out. Check the profile or try another network.'); return
+        if self.socks_check is not None: return
+        sock = QTcpSocket(self); self.socks_check = sock
+        sock.setProxy(QNetworkProxy(QNetworkProxy.ProxyType.NoProxy))
+        sock.connected.connect(lambda: sock.write(b'\x05\x01\x00') if self.socks_check is sock else None)
+        def received():
+            if self.socks_check is not sock or sock.bytesAvailable() < 2: return
+            ok = bytes(sock.read(2)) == b'\x05\x00'
+            self._dispose_socks(sock)
+            if ok and self.state == 'starting':
+                self.poller.stop(); self._set('checking', 'Checking internet through the tunnel…')
+                self._probe('startup', direct=False)
+        sock.readyRead.connect(received)
+        sock.errorOccurred.connect(lambda *_: self._dispose_socks(sock))
+        QTimer.singleShot(400, lambda: self._dispose_socks(sock))
+        sock.connectToHost('127.0.0.1', self.port)
 
-    def _read_output(self):
-        self.buffer += bytes(self.core.readAllStandardOutput())
-        while b"\n" in self.buffer:
-            line, self.buffer = self.buffer.split(b"\n", 1)
-            if self.mode != "tun": continue  # Native logs may contain private fields; never display them.
-            try: event = json.loads(line).get("event")
+    def _read_output(self, proc):
+        if proc is not self.core: return
+        self.buffer += bytes(proc.readAllStandardOutput())
+        if self.state == 'stopping': self.buffer = b''; return
+        while b'\n' in self.buffer:
+            line, self.buffer = self.buffer.split(b'\n', 1)
+            if self.mode != 'tun': continue  # Native logs can contain private fields.
+            try: event = json.loads(line).get('event')
             except (ValueError, AttributeError): continue
-            if event == "backend-started": self.message = "Finding a working endpoint…"; self.changed.emit()
-            elif event == "tun-ready": self._probe("startup-direct", direct=True)
-            elif event in ("tun-setup-failed", "tun-failed", "network-tools-missing", "routing-conflict", "tun-already-active", "tun-routing-failed"):
-                messages = {"tun-routing-failed": "System traffic is not routed into Tesla VPN. Disconnect other VPNs and retry.", "routing-conflict": "Another VPN has conflicting routes. Disconnect it first.",
-                            "network-tools-missing": "TUN requires iproute2 and nftables.",
-                            "tun-already-active": "A Tesla TUN session is already active."}
-                self._fail(messages.get(event, "Could not start system VPN. Check administrator permission and /dev/net/tun."))
+            if event == 'backend-started': self.message = 'Finding a working endpoint…'; self.changed.emit()
+            elif event == 'tun-ready': self._probe('startup-direct', direct=True)
+            elif event in ('tun-setup-failed','tun-failed','network-tools-missing','routing-conflict','tun-already-active','tun-routing-failed'):
+                messages = {'tun-routing-failed': 'System traffic is not routed into Tesla VPN. Disconnect other VPNs and retry.',
+                    'routing-conflict': 'Another VPN has conflicting routes. Disconnect it first.',
+                    'network-tools-missing': 'TUN requires iproute2 and nftables.',
+                    'tun-already-active': 'A Tesla TUN session is already active.'}
+                self._fail(messages.get(event, 'Could not start system VPN. Check administrator permission and /dev/net/tun.'))
 
-    def _process_error(self, error):
-        if error == QProcess.ProcessError.FailedToStart:
-            self._fail("Could not start the VPN helper. Check the installation and pkexec.")
+    def _process_error(self, proc, error):
+        if proc is not self.core: return
+        if self.state == 'stopping': self._stopped()
+        elif error == QProcess.ProcessError.FailedToStart:
+            self._fail('Could not start the VPN helper. Check the installation and pkexec.')
 
-    def _finished(self, *_):
-        if self.state == "stopping": self._stopped()
-        elif self.state not in ("idle", "error"):
-            self._fail("The tunnel stopped or administrator authorization was cancelled.")
+    def _finished(self, proc):
+        if proc is not self.core: return
+        if self.state == 'stopping': self._stopped()
+        elif self.state not in ('idle','error'):
+            self._fail('The tunnel stopped or administrator authorization was cancelled.')
 
     def _probe(self, purpose, direct=False, attempt=0):
         if self.reply is not None: return
         self.testing = True; self.changed.emit()
-        proxy = QNetworkProxy(QNetworkProxy.ProxyType.NoProxy) if direct else QNetworkProxy(
-            QNetworkProxy.ProxyType.Socks5Proxy, "127.0.0.1", self.port)
-        self.net.clearConnectionCache()
-        self.net.setProxy(proxy)
-        urls = ["https://www.cloudflare.com/cdn-cgi/trace", "https://www.gstatic.com/generate_204"]
+        proxy = QNetworkProxy(QNetworkProxy.ProxyType.NoProxy) if direct else QNetworkProxy(QNetworkProxy.ProxyType.Socks5Proxy,'127.0.0.1',self.port)
+        self.net.clearConnectionCache(); self.net.setProxy(proxy)
+        urls = ['https://www.cloudflare.com/cdn-cgi/trace','https://www.gstatic.com/generate_204']
         request = QNetworkRequest(QUrl(urls[attempt])); request.setTransferTimeout(15000)
-        request.setRawHeader(b"User-Agent", b"TeslaVpn/1.0")
+        request.setRawHeader(b'User-Agent', b'TeslaVpn/1.0')
         self.probe_started = time.monotonic()
         reply = self.net.get(request); self.reply = reply
         self.probe_timer.start(16000)
-        reply.finished.connect(lambda: self._probe_done(reply, purpose, direct, attempt))
+        epoch = self.epoch
+        reply.finished.connect(lambda: self._probe_done(reply,purpose,direct,attempt,epoch))
 
-    def _probe_done(self, reply, purpose, direct, attempt):
+    def _probe_done(self, reply, purpose, direct, attempt, epoch=None):
+        if epoch is not None and epoch != self.epoch:
+            reply.deleteLater(); return
         self.probe_timer.stop()
         status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
-        ok = reply.error() == QNetworkReply.NetworkError.NoError and status in (200, 204)
-        elapsed = round((time.monotonic() - self.probe_started) * 1000)
-        body = bytes(reply.readAll()).decode("utf-8", "replace")
-        match = re.search(r"^loc=([A-Z]{2})$", body, re.MULTILINE) if attempt == 0 and ok else None
+        ok = reply.error() == QNetworkReply.NetworkError.NoError and status in (200,204)
+        elapsed = round((time.monotonic()-self.probe_started)*1000)
+        body = bytes(reply.readAll()).decode('utf-8','replace')
+        match = re.search(r'^loc=([A-Z]{2})$',body,re.MULTILINE) if attempt == 0 and ok else None
         country = match.group(1) if match else None
         self.reply = None; reply.deleteLater()
-        if self.state == "stopping": self.testing = False; return
-        if not ok and attempt == 0:
-            self._probe(purpose, direct, 1); return
+        if self.state == 'stopping': self.testing = False; return
+        if not ok and attempt == 0: self._probe(purpose,direct,1); return
+        self.connected_at = None
         self.testing = False
         if not ok:
-            if purpose == "manual":
-                self.message = "Internet check failed. The tunnel is still running."; self.changed.emit()
-            else: self._fail("The tunnel answered, but HTTPS internet access could not be verified.")
+            if purpose == 'manual': self.message = 'Internet check failed. The tunnel is still running.'; self.changed.emit()
+            else: self._fail('The tunnel answered, but HTTPS internet access could not be verified.')
             return
-        if purpose == "startup-direct" and country and self.proxy_country and country != self.proxy_country:
-            self._fail("System VPN exit differs from the proxy exit. Disconnect other VPNs and retry.")
-            return
-        self.exit_country = country
-        self.latency = elapsed
-        result_message = f"Connection succeeded in {elapsed} ms" + (f" · Exit: {country}" if country else "")
-        if purpose == "startup" and self.mode == "tun":
-            self.proxy_country = country
-            self.message = "Applying system VPN routes…"; self.changed.emit()
-            self.core.write(b"enable\n")
-        elif purpose.startswith("startup"):
-            try:
-                self._start_bridge()
-                if self.mode == "proxy": self.proxy.activate(self.port, self.http_port)
-                self._set("connected", result_message)
-            except Exception:
-                self._fail("Could not apply proxy settings. Previous settings will be restored.")
-        else:
-            self.message = result_message; self.changed.emit()
+        if purpose == 'startup-direct' and country and self.proxy_country and country != self.proxy_country:
+            self._fail('System VPN exit differs from the proxy exit. Disconnect other VPNs and retry.'); return
+        self.exit_country = country; self.latency = elapsed
+        result = f'Connection succeeded in {elapsed} ms' + (f' · Exit: {country}' if country else '')
+        if purpose == 'startup' and self.mode == 'tun':
+            self.proxy_country = country; self.message = 'Applying system VPN routes…'; self.changed.emit()
+            self.core.write(b'enable\n')
+        elif purpose.startswith('startup'):
+            self.pending_result = result
+            self.message = 'Preparing local proxy…'; self.changed.emit()
+            self._start_bridge()
+        else: self.message = result; self.changed.emit()
 
     def _start_bridge(self):
-        self.bridge = QProcess(self)
-        args = command("--http-bridge", str(self.port), str(self.http_port))
-        self.bridge.start(args[0], args[1:])
-        if not self.bridge.waitForStarted(2000): raise OSError("HTTP proxy failed")
-        self.bridge.finished.connect(lambda *_: self._fail("The local proxy stopped.") if self.state == "connected" else None)
+        proc = QProcess(self); self.bridge = proc; self.bridge_buffer = b''
+        proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        proc.readyReadStandardOutput.connect(lambda: self._bridge_output(proc))
+        proc.finished.connect(lambda *_: self._bridge_finished(proc))
+        proc.errorOccurred.connect(lambda e: self._bridge_error(proc,e))
+        args = command('--http-bridge',str(self.port),str(self.http_port))
+        self.bridge_timer.start(8000); proc.start(args[0],args[1:])
+
+    def _bridge_output(self, proc):
+        if proc is not self.bridge: return
+        self.bridge_buffer += bytes(proc.readAllStandardOutput())
+        while b'\n' in self.bridge_buffer:
+            line,self.bridge_buffer = self.bridge_buffer.split(b'\n',1)
+            try: ready = json.loads(line).get('event') == 'http-ready'
+            except (ValueError,AttributeError): continue
+            if ready: self._bridge_ready()
+
+    def _bridge_ready(self):
+        if self.state != 'checking' or self.pending_result is None: return
+        self.bridge_timer.stop()
+        result,self.pending_result = self.pending_result,None
+        epoch = self.epoch
+        def applied(_,error):
+            if epoch != self.epoch or self.state != 'checking': return
+            if error: self._fail('Could not apply proxy settings. Previous settings will be restored.')
+            else: self._set('connected',result)
+        if self.mode == 'proxy': self.tasks.submit(lambda: self.proxy.activate(self.port,self.http_port),applied)
+        else: applied(None,None)
+
+    def _bridge_finished(self, proc):
+        if proc is not self.bridge: return
+        if self.state == 'stopping': self._stopped()
+        elif self.state in ('checking','connected'): self._fail('The local proxy stopped.')
+
+    def _bridge_error(self, proc, error):
+        if proc is self.bridge and error == QProcess.ProcessError.FailedToStart:
+            if self.state == 'stopping': self._stopped()
+            else: self._fail('Could not start the local HTTP proxy.')
 
     def test(self):
-        if self.state != "connected" or self.testing: return
-        self.message = "Testing…"; self._probe("manual", direct=self.mode == "tun")
+        if self.state != 'connected' or self.testing: return
+        self.message = 'Testing…'; self._probe('manual',direct=self.mode == 'tun')
 
     def _fail(self, message):
-        self.error_after_stop = message
-        self.stop()
+        self.error_after_stop = message; self.stop()
 
     def stop(self):
-        if self.state == "stopping": return
-        self.poller.stop()
-        self._set("stopping", "Restoring network settings…")
-        if self.reply is not None: self.reply.abort()
+        if self.state == 'stopping': return
+        self.epoch += 1; self.restore_pending = True
+        self.poller.stop(); self.bridge_timer.stop(); self.pending_result = None
+        if self.socks_check is not None: self._dispose_socks(self.socks_check)
+        self._set('stopping','Restoring network settings…')
+        self.probe_timer.stop()
+        reply, self.reply = self.reply, None
+        if reply is not None: reply.abort()
         self.testing = False
-        try: self.proxy.restore()
-        except Exception: self.notice.emit("Previous proxy settings could not be restored. Recovery will be retried at next launch.")
-        if self.bridge is not None:
-            self.bridge.terminate(); self.bridge.waitForFinished(1000); self.bridge.kill(); self.bridge = None
+        def restored(_,error):
+            self.restore_pending = False
+            if error: self.notice.emit('Previous proxy settings could not be restored. Recovery will be retried at next launch.')
+            self._stopped()
+        # Serialized after activation: cancel while applying can never leave proxy on.
+        self.tasks.submit(self.proxy.restore,restored)
+        if self.bridge is not None and self.bridge.state() != QProcess.ProcessState.NotRunning:
+            proc=self.bridge; proc.terminate()  # SIGTERM is asynchronous on Linux.
+            QTimer.singleShot(1000,lambda proc=proc: proc.kill() if self.bridge is proc and proc.state()!=QProcess.ProcessState.NotRunning else None)
         if self.core is not None and self.core.state() != QProcess.ProcessState.NotRunning:
-            if self.mode == "tun":
-                self.core.write(b"stop\n"); self.core.closeWriteChannel()
+            proc=self.core
+            if self.mode == 'tun':
+                proc.write(b'stop\n'); proc.closeWriteChannel()
             else:
-                try: os.killpg(int(self.core.processId()), signal.SIGINT)
+                try: os.killpg(int(proc.processId()), signal.SIGINT)
                 except ProcessLookupError: pass
-                QTimer.singleShot(3000, self._force_stop_user_core)
-        else: self._stopped()
+            QTimer.singleShot(10000, lambda proc=proc: self._force_stop_core(proc))
+        self._stopped()
 
-    def _force_stop_user_core(self):
-        if self.mode == "proxy" and self.state == "stopping" and self.core is not None:
-            try: os.killpg(int(self.core.processId()), signal.SIGKILL)
+    def _force_stop_core(self, proc):
+        if self.core is not proc or proc.state() == QProcess.ProcessState.NotRunning: return
+        if self.mode == 'proxy':
+            try: os.killpg(int(proc.processId()), signal.SIGKILL)
             except ProcessLookupError: pass
+        else: proc.kill()
 
     def _stopped(self):
-        message, self.error_after_stop = self.error_after_stop, ""
-        self._set("error" if message else "idle", message or "Disconnected")
+        if self.state != 'stopping' or self.restore_pending: return
+        if any(p is not None and p.state()!=QProcess.ProcessState.NotRunning for p in (self.core,self.bridge)): return
+        message,self.error_after_stop = self.error_after_stop,''
+        self._set('error' if message else 'idle',message or 'Disconnected')
 
     @property
     def session_seconds(self):
@@ -205,10 +264,8 @@ class Engine(QObject):
     def _set(self, state, message):
         if state == "connected" and self.state != "connected": self.connected_at = time.monotonic()
         elif state != "connected": self.connected_at = None
-        self.state = state; self.message = message
-        try:
-            private_write(self.root / "status.json", json.dumps({"state": state, "mode": self.mode,
-                "message": message, "updated": time.time()}).encode())
-        except OSError:
-            pass  # Diagnostics must never prevent network cleanup.
+        self.state=state; self.message=message
         self.changed.emit()
+        # Snapshot writes/fsync can be slow on disk; never block painting.
+        data=json.dumps({'state':state,'mode':self.mode,'message':message,'updated':time.time()}).encode()
+        self.tasks.submit(lambda: private_write(self.root/'status.json',data),lambda *_: None)

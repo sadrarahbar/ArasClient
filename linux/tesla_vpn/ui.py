@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 import shutil
 import xml.etree.ElementTree as ET
-from PyQt6.QtCore import QLocale, Qt, QRectF, QTimer, QProcess, QPoint, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import QLocale, Qt, QRectF, QTimer, QProcess, QPoint, QPropertyAnimation, QEasingCurve, QVariantAnimation
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap, QIcon, QTransform, QFont, QFontDatabase, QImageReader
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QAbstractButton, QFrame, QRadioButton, QButtonGroup, QFileDialog, QMessageBox,
@@ -82,16 +82,21 @@ class PowerButton(QAbstractButton):
         reader.setScaledSize(QSize(445, 295))
         self.symbol = QPixmap.fromImage(reader.read())
         self.color = RED; self.connecting = False; self.angle = 0
-        self.timer = QTimer(self); self.timer.setInterval(60); self.timer.timeout.connect(self.spin)
+        self.animation = QVariantAnimation(self)
+        self.animation.setStartValue(0.0); self.animation.setEndValue(360.0)
+        self.animation.setDuration(1200); self.animation.setLoopCount(-1)
+        self.animation.setEasingCurve(QEasingCurve.Type.Linear)
+        self.animation.valueChanged.connect(self.spin)
         self.setAccessibleName("Connect")
 
-    def spin(self): self.angle = (self.angle + 8) % 360; self.update()
+    def spin(self, angle): self.angle = float(angle); self.update()
 
     def status(self, connected, connecting):
         self.color = GREEN if connected else AMBER if connecting else RED
-        self.connecting = connecting
-        if connecting: self.timer.start()
-        else: self.timer.stop()
+        if connecting != self.connecting:
+            self.connecting = connecting
+            if connecting: self.animation.start()
+            else: self.animation.stop()
         self.setAccessibleName("Disconnect or cancel" if connected or connecting else "Connect")
         self.update()
 
@@ -105,7 +110,7 @@ class PowerButton(QAbstractButton):
         p.drawPixmap(QRectF(30.2593, 63.0037, 111.0991, 73.6882), self.symbol, QRectF(self.symbol.rect()))
         if self.connecting or (self.hasFocus() and self.window().testAttribute(Qt.WidgetAttribute.WA_KeyboardFocusChange)):
             p.setBrush(Qt.BrushStyle.NoBrush); p.setPen(QPen(QColor(BG), 2))
-            p.drawArc(QRectF(10, 10, 151, 151), self.angle * 16, 100 * 16) if self.connecting else p.drawEllipse(QRectF(10, 10, 151, 151))
+            p.drawArc(QRectF(10, 10, 151, 151), round(self.angle * 16), 100 * 16) if self.connecting else p.drawEllipse(QRectF(10, 10, 151, 151))
         p.end()
 
 
@@ -235,7 +240,7 @@ class Window(QMainWindow):
         QFontDatabase.addApplicationFont(str(resources() / "assets/figma/Geologica.ttf"))
         self.setFont(design_font(20))
         self.root = root; self.store = ProfileStore(root); self.engine = Engine(root)
-        self.profile = None; self.initial_error = ""
+        self.profile = None; self.initial_error = ""; self.closing = False
         try: self.profile = self.store.load()
         except ImportError as error: self.initial_error = str(error)
         try: self.engine.proxy.restore()
@@ -284,6 +289,7 @@ class Window(QMainWindow):
         self.import_button.setStyleSheet("QPushButton {color:#98ABD5;background:#19253A;border:0;border-radius:18px;padding:0;} QPushButton:hover {background:#24324C;} QPushButton:focus {border:1px solid #98ABD5;} QPushButton:disabled {color:#556278;}")
         self.sheet = ImportSheet(self, self.import_action); self.import_button.clicked.connect(self.sheet.open)
         self.engine.changed.connect(self.render)
+        self.engine.changed.connect(self._close_when_stopped)
         self.engine.notice.connect(lambda text: QMessageBox.warning(self, "Tesla Vpn", text))
         self.render()
         if self.initial_error: QTimer.singleShot(200, lambda: QMessageBox.warning(self, "Tesla Vpn", self.initial_error))
@@ -362,9 +368,14 @@ class Window(QMainWindow):
         super().resizeEvent(event)
         if hasattr(self, "sheet") and self.sheet.isVisible(): self.sheet.open()
 
+    def _close_when_stopped(self):
+        if self.closing and self.engine.state in ("idle", "error"):
+            QTimer.singleShot(0, self.close)
+
     def closeEvent(self, event):
         if self.engine.state not in ("idle", "error"):
+            self.closing = True
+            event.ignore()
             self.engine.stop()
-            if self.engine.core is not None and not self.engine.core.waitForFinished(10000):
-                event.ignore(); QMessageBox.information(self, "Tesla Vpn", "Waiting for VPN routes to be restored. Please close again in a moment."); return
+            return
         event.accept()

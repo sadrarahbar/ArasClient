@@ -57,6 +57,11 @@ class UITests(unittest.TestCase):
             self.assertEqual(w.message.text(),'')
             self.assertFalse(w.message.isVisible())
             w.close()
+            import time
+            from PyQt6.QtTest import QTest
+            deadline=time.monotonic()+5
+            while w.engine.tasks.pending and time.monotonic()<deadline:QTest.qWait(10)
+            self.assertFalse(w.engine.tasks.pending)
 
     def test_qr_import_decodes_real_image(self):
         from io import BytesIO
@@ -65,3 +70,18 @@ class UITests(unittest.TestCase):
         data=BytesIO();qrcode.make(text).save(data,format='PNG')
         found=[];d=QRDialog(None,found.append)
         self.assertTrue(d.decode(data.getvalue()));self.assertEqual(found,[text]);d.close()
+
+class AnimationTests(unittest.TestCase):
+    def test_status_updates_do_not_restart_continuous_animation(self):
+        from tesla_vpn.ui import PowerButton
+        from PyQt6.QtTest import QTest,QSignalSpy
+        from PyQt6.QtCore import QAbstractAnimation
+        button=PowerButton();button.status(False,True)
+        frames=QSignalSpy(button.animation.valueChanged)
+        try:
+            for _ in range(8):
+                QTest.qWait(25);button.status(False,True)
+            self.assertGreaterEqual(button.animation.currentTime(),120)
+            self.assertGreaterEqual(len(frames),5)
+        finally:button.status(False,False)
+        self.assertEqual(button.animation.state(),QAbstractAnimation.State.Stopped)
