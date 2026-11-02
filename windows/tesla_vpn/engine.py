@@ -225,11 +225,11 @@ class Engine(QObject):
         # Serialized after activation: cancel while applying can never leave proxy on.
         self.tasks.submit(self.proxy.restore,restored)
         if self.bridge is not None and self.bridge.state() != QProcess.ProcessState.NotRunning:
-            proc=self.bridge; proc.terminate()
-            QTimer.singleShot(1000,lambda: proc.kill() if self.bridge is proc and proc.state()!=QProcess.ProcessState.NotRunning else None)
+            proc=self.bridge; proc.closeWriteChannel()  # EOF works for a windowless helper; WM_CLOSE does not.
+            QTimer.singleShot(1000,lambda proc=proc: proc.kill() if self.bridge is proc and proc.state()!=QProcess.ProcessState.NotRunning else None)
         if self.core is not None and self.core.state() != QProcess.ProcessState.NotRunning:
             proc=self.core; proc.write(b'stop\n'); proc.closeWriteChannel()
-            QTimer.singleShot(10000,lambda: proc.kill() if self.core is proc and proc.state()!=QProcess.ProcessState.NotRunning else None)
+            QTimer.singleShot(10000,lambda proc=proc: proc.kill() if self.core is proc and proc.state()!=QProcess.ProcessState.NotRunning else None)
         self._stopped()
 
     def _stopped(self):

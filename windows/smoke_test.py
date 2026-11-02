@@ -71,6 +71,51 @@ def packaged_data_path(exe, state):
     print('Packaged helpers close listeners and child processes on parent EOF')
 
 
+def qt_disconnect(exe, state):
+    """Regression: both real QProcesses must exit and Qt must leave Disconnecting."""
+    from unittest.mock import patch
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtCore import QProcess
+    from tesla_vpn.engine import Engine
+    from tesla_vpn.profiles import Profile
+    from tesla_vpn.runtime import prepare
+    from tesla_vpn.win32 import private_directory
+    app=QApplication.instance() or QApplication([])
+    private_directory(state)
+    profile=Profile('CI stop lifecycle','xray',{'outbounds':[{'protocol':'freedom','tag':'proxy'}]})
+    class Proxy:
+        active=False
+        def activate(self,*_):self.active=True
+        def restore(self):self.active=False
+    engine=Engine(state);engine.proxy=Proxy()
+    def probe(*_,**__):
+        engine.pending_result='CI connected';engine._start_bridge()
+    engine._probe=probe
+    def plan(p,port,root):return prepare(p,port,root,exe.parent/'_internal/cores')
+    with patch('tesla_vpn.engine.prepare',side_effect=plan),patch('tesla_vpn.engine.command',side_effect=lambda *a:[str(exe),*a]):
+        try:
+            engine.start(profile,'proxy')
+            deadline=time.monotonic()+30
+            while engine.state not in ['connected','error'] and time.monotonic()<deadline:QTest.qWait(10)
+            if engine.state!='connected':raise RuntimeError('Qt engine did not start packaged helpers.')
+            engine.stop()
+            deadline=time.monotonic()+5
+            while engine.state=='stopping' and time.monotonic()<deadline:QTest.qWait(10)
+            if engine.state!='idle':raise RuntimeError('Qt engine remained in Disconnecting after native shutdown.')
+            if engine.proxy.active:raise RuntimeError('Proxy restore did not complete.')
+            for process in [engine.core,engine.bridge]:
+                if process.state()!=QProcess.ProcessState.NotRunning:raise RuntimeError('A packaged helper survived Qt disconnect.')
+            print('Qt Engine disconnect reaches idle and closes both packaged helpers')
+        finally:
+            if engine.state not in ['idle','error']:engine.stop()
+            deadline=time.monotonic()+12
+            while (engine.state=='stopping' or engine.tasks.pending) and time.monotonic()<deadline:QTest.qWait(10)
+            for process in [engine.core,engine.bridge]:
+                if process and process.state()!=QProcess.ProcessState.NotRunning:
+                    process.kill();process.waitForFinished(3000)
+
+
 def main():
     import struct
     exe_path=ROOT.parent/'artifacts/windows/TeslaVpn/TeslaVpn.exe'
@@ -112,6 +157,7 @@ def main():
         print('Wintun adapter cleaned up after Job Object close')
         exe=ROOT.parent/'artifacts/windows/TeslaVpn/TeslaVpn.exe'
         packaged_data_path(exe,temp/'data-path-state')
+        qt_disconnect(exe,temp/'qt-stop-state')
         fixture=temp/'profile.txt';fixture.write_text('aether://?protocol=masque#CI-no-credentials')
         image=ROOT.parent/'artifacts/windows/preview.png'
         run([exe,'--state-root',temp/'state','--profile',fixture,'--screenshot',image],env=dict(os.environ,QT_QPA_PLATFORM='offscreen'))

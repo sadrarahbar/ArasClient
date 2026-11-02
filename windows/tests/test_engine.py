@@ -133,3 +133,29 @@ class StaleProbeTests(unittest.TestCase):
             old.deleteLater.assert_called_once();old.readAll.assert_not_called()
             self.assertIs(e.reply,current);self.assertEqual(e.state,'checking')
             self.assertTrue(e.probe_timer.isActive());e.probe_timer.stop()
+
+class DisconnectTests(unittest.TestCase):
+    def test_windowless_bridge_is_killed_even_when_core_also_has_stop_timer(self):
+        from PyQt6.QtCore import QProcess
+        class Process:
+            def __init__(self,finished):self.running=True;self.killed=False;self.finished=finished
+            def state(self):return QProcess.ProcessState.Running if self.running else QProcess.ProcessState.NotRunning
+            def terminate(self):pass  # WM_CLOSE has no target in a windowless Windows helper.
+            def write(self,_):pass
+            def closeWriteChannel(self):pass
+            def kill(self):self.killed=True;self.finish()
+            def finish(self):self.running=False;self.finished(self)
+        for mode in ['proxy','tun']:
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as tmp:
+                e=Engine(Path(tmp));e.state='connected';e.mode=mode
+                bridge=Process(e._bridge_finished);core=Process(e._finished)
+                e.bridge=bridge;e.core=core
+                e.stop();core.finish()  # Routes are already restored, but bridge ignores terminate.
+                QTest.qWait(1200);drain(e)
+                try:
+                    self.assertTrue(bridge.killed,'The bridge shutdown deadline did not kill the bridge')
+                    self.assertFalse(core.killed,'The bridge deadline must never target the core')
+                    self.assertEqual(e.state,'idle')
+                finally:
+                    if bridge.running:bridge.kill()
+                    drain(e)
