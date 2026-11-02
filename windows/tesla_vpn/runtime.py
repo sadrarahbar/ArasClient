@@ -35,7 +35,8 @@ class Plan:
 def prepare(profile: Profile, port: int, root: Path, cores: Path | None = None):
     cores = cores or resources() / "cores"
     work = root / "accounts" / hashlib.sha256(json.dumps(profile.encode(), sort_keys=True).encode()).hexdigest()
-    work.mkdir(parents=True, mode=0o700, exist_ok=True); work.chmod(0o700)
+    work.mkdir(parents=True, mode=0o777 if os.name == "nt" else 0o700, exist_ok=True)
+    if os.name != "nt": work.chmod(0o700)
     env = {"HOME": str(work), "PATH": str(cores) + os.pathsep + os.environ.get("PATH", "")}
     if profile.kind == "aether":
         payload = profile.data

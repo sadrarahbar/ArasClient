@@ -37,3 +37,30 @@ class JobTests(unittest.TestCase):
             root=Path(d)/'private';private_directory(root)
             result=subprocess.check_output(['icacls',str(root)],text=True)
             self.assertNotIn('(I)',result)
+
+    def test_runtime_accounts_inherit_private_user_acl(self):
+        from tesla_vpn.win32 import private_directory
+        from tesla_vpn.runtime import prepare
+        from tesla_vpn.profiles import parse_import, private_write
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / 'state'; private_directory(root)
+            cores = Path(d) / 'cores'; cores.mkdir(); (cores / 'xray.exe').touch()
+            profile = parse_import('vless://id@example.com:443#test')
+            plan = prepare(profile, 12345, root, cores)
+            acl = subprocess.check_output(['icacls', plan.cwd], text=True)
+            self.assertIn('(I)', acl)
+            nested = root / 'nested' / 'private.json'
+            private_write(nested, b'private')
+            self.assertIn('(I)', subprocess.check_output(['icacls', str(nested.parent)], text=True))
+
+    def test_migration_restores_inheritance_without_changing_identity(self):
+        from unittest.mock import patch
+        from tesla_vpn.win32 import private_directory, repair_account_permissions
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / 'state'; private_directory(root)
+            account = root / 'accounts' / 'old'; account.mkdir(parents=True, mode=0o700)
+            identity = account / 'aether-wg.toml'; identity.write_bytes(b'preserve-key')
+            self.assertNotIn('(I)', subprocess.check_output(['icacls', str(account)], text=True))
+            with patch('tesla_vpn.win32.is_admin', return_value=True): repair_account_permissions(root)
+            self.assertIn('(I)', subprocess.check_output(['icacls', str(account)], text=True))
+            self.assertEqual(identity.read_bytes(), b'preserve-key')

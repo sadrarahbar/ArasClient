@@ -29,6 +29,17 @@ def private_directory(root):
         check=True, capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
 
 
+def repair_account_permissions(root):
+    """Migrate old elevated mkdir(0700) ACLs without replacing account identities."""
+    if sys.platform != 'win32' or not is_admin(): return
+    accounts = root / 'accounts'
+    if not accounts.exists(): return
+    # The private root already grants the actual user SID, SYSTEM and administrators.
+    # Reset old protected child ACLs to inherit those entries. /L acts on links themselves.
+    subprocess.run(['icacls', str(accounts), '/reset', '/T', '/L', '/Q'],
+        check=True, capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+
+
 def wait_for_parent(pid):
     kernel = ctypes.WinDLL('kernel32', use_last_error=True)
     kernel.OpenProcess.restype = wintypes.HANDLE
@@ -42,10 +53,10 @@ def wait_for_parent(pid):
         finally: kernel.CloseHandle(handle)
 
 
-def elevate(root):
+def elevate(root, mode="tun"):
     if sys.platform != "win32": raise OSError("Windows TUN requires Windows 10/11.")
     from .runtime import command
-    args = command('--connect', '--mode', 'tun', '--state-root', str(root), '--wait-parent', str(os.getpid()))
+    args = command('--connect', '--mode', mode, '--state-root', str(root), '--wait-parent', str(os.getpid()))
     shell = ctypes.WinDLL('shell32', use_last_error=True)
     shell.ShellExecuteW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR,
         wintypes.LPCWSTR, wintypes.LPCWSTR, ctypes.c_int]

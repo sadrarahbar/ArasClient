@@ -14,6 +14,7 @@ from .tasks import Tasks
 class Engine(QObject):
     changed = pyqtSignal()
     notice = pyqtSignal(str)
+    permission_required = pyqtSignal()
 
     def __init__(self, root: Path):
         super().__init__()
@@ -51,7 +52,12 @@ class Engine(QObject):
             return request
         def ready(request, error):
             if epoch != self.epoch or self.state != 'starting': return
-            if error: self._fail(str(error)); return
+            if error:
+                if isinstance(error, PermissionError):
+                    self._fail('Windows denied access to saved account files. Administrator permission is needed once to repair access.')
+                    self.permission_required.emit()
+                else: self._fail(str(error))
+                return
             proc = QProcess(self); self.core = proc
             proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
             proc.readyReadStandardOutput.connect(lambda: self._read_output(proc))

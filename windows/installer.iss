@@ -1,7 +1,7 @@
 [Setup]
 AppId={{AC6FD3D0-6CCA-4770-A6BB-93459F2C437C}
 AppName=Tesla Vpn
-AppVersion=1.0.2
+AppVersion=1.0.3
 DefaultDirName={localappdata}\Programs\TeslaVpn
 DefaultGroupName=Tesla Vpn
 DisableProgramGroupPage=yes
@@ -10,7 +10,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.17763
 OutputDir=..\artifacts\windows
-OutputBaseFilename=TeslaVpn-1.0.2-Windows-x64-Setup
+OutputBaseFilename=TeslaVpn-1.0.3-Windows-x64-Setup
 SetupIconFile=build\icon.ico
 UninstallDisplayIcon={app}\TeslaVpn.exe
 Compression=lzma2

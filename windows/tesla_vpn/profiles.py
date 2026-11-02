@@ -236,8 +236,10 @@ def wireguard_profile(text):
 
 
 def private_write(path: Path, data: bytes):
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    path.parent.chmod(0o700)
+    # Windows children inherit the private state root ACL, including the user SID.
+    # mkdir(0700) instead assigns OWNER RIGHTS, which breaks after UAC elevation.
+    path.parent.mkdir(mode=0o777 if os.name == "nt" else 0o700, parents=True, exist_ok=True)
+    if os.name != "nt": path.parent.chmod(0o700)
     fd, tmp = tempfile.mkstemp(prefix=".new-", dir=path.parent)
     try:
         with os.fdopen(fd, "wb") as f:

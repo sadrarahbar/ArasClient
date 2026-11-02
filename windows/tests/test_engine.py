@@ -50,6 +50,19 @@ class EgressTests(unittest.TestCase):
             e.probe_timer.stop()
 
 class ResponsiveLifecycleTests(unittest.TestCase):
+    def test_account_permission_failure_requests_repair_without_leaking_path(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            e = Engine(Path(tmp)); repair = []
+            e.permission_required.connect(lambda: repair.append(True))
+            with patch('tesla_vpn.engine.prepare', side_effect=PermissionError('private-account-path')):
+                e.start(None, 'proxy'); drain(e)
+            self.assertEqual(repair, [True])
+            self.assertEqual(e.state, 'error')
+            self.assertIn('Administrator permission', e.message)
+            self.assertNotIn('private-account-path', e.message)
+
+
     def test_slow_socks_handshake_does_not_block_qt(self):
         from PyQt6.QtCore import QTimer
         from PyQt6.QtNetwork import QTcpServer,QHostAddress

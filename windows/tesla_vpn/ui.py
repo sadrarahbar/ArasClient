@@ -213,6 +213,7 @@ class Window(QMainWindow):
         QFontDatabase.addApplicationFont(str(resources() / "assets/figma/Geologica.ttf"))
         self.setFont(design_font(20))
         self.root = root; self.store = ProfileStore(root); self.engine = Engine(root)
+        self.engine.permission_required.connect(self.repair_permissions)
         self.profile = None; self.initial_error = ""; self.closing = False
         try: self.profile = self.store.load()
         except ImportError as error: self.initial_error = str(error)
@@ -278,6 +279,20 @@ class Window(QMainWindow):
         self.mode_box.setEnabled(engine.state in ("idle", "error"))
         self.import_button.setText("Replace configuration" if has else "Import configuration")
         self.import_button.setEnabled(engine.state in ("idle", "error"))
+
+    def repair_permissions(self):
+        from .win32 import is_admin, elevate
+        if is_admin(): return
+        answer = QMessageBox.question(self, "Repair account access",
+            "Windows blocked access to account files created by an older version. "
+            "Restart with administrator permission once to repair access and reconnect? "
+            "Your configuration and keys will be preserved.")
+        if answer != QMessageBox.StandardButton.Yes: return
+        try:
+            elevate(self.root, mode=self.engine.mode)
+            QApplication.instance().quit()
+        except OSError as error:
+            QMessageBox.warning(self, "Tesla Vpn", str(error))
 
     def toggle(self):
         from .win32 import is_admin, elevate

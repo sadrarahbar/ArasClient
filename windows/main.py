@@ -51,13 +51,14 @@ def main():
     from tesla_vpn.runtime import state_root
     from tesla_vpn.ui import Window
     app = QApplication(sys.argv[:1]); app.setApplicationName("Tesla Vpn"); app.setDesktopFileName("tesla-vpn"); app.setFont(QFont("DejaVu Sans", 14))
-    from tesla_vpn.win32 import supported_windows, private_directory
+    from tesla_vpn.win32 import supported_windows, private_directory, repair_account_permissions
     if sys.platform == "win32" and not supported_windows():
         QMessageBox.critical(None, "Tesla Vpn", "Windows 10 version 1809 or newer, 64-bit, is required."); return 1
     root = options.state_root or state_root()
     private_directory(root)
     lock = QLockFile(str(root / "application.lock"))
     if not lock.tryLock(100): QMessageBox.information(None, "Tesla Vpn", "Tesla Vpn is already running."); return 0
+    repair_account_permissions(root)
     window = Window(root); app.setWindowIcon(window.windowIcon())
     if options.profile:
         window.import_text(Path(options.profile).read_text(encoding="utf-8-sig"))
