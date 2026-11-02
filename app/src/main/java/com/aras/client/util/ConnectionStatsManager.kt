@@ -61,7 +61,7 @@ object ConnectionStatsManager {
         if (running) return
         running = true
         LogUtil.i(AppConfig.TAG, "Stats: session started")
-        sessionStart = System.currentTimeMillis()
+        sessionStart = android.os.SystemClock.elapsedRealtime()
         sessionDown = 0
         sessionUp = 0
         lastDown = rxCounter()
@@ -89,7 +89,7 @@ object ConnectionStatsManager {
         )
         val totalDown = MmkvManager.decodeSettingsLong(KEY_TOTAL_DOWN, 0) + sessionDown
         val totalUp = MmkvManager.decodeSettingsLong(KEY_TOTAL_UP, 0) + sessionUp
-        val session = System.currentTimeMillis() - sessionStart
+        val session = android.os.SystemClock.elapsedRealtime() - sessionStart
         MmkvManager.encodeSettings(KEY_TOTAL_DOWN, totalDown)
         MmkvManager.encodeSettings(KEY_TOTAL_UP, totalUp)
         MmkvManager.encodeSettings(KEY_SESSION_MS, session)
@@ -108,7 +108,7 @@ object ConnectionStatsManager {
             lastDown = nowDown
             lastUp = nowUp
             lastSnapshot = Snapshot(
-                sessionMillis = System.currentTimeMillis() - sessionStart,
+                sessionMillis = android.os.SystemClock.elapsedRealtime() - sessionStart,
                 sessionDown = sessionDown,
                 sessionUp = sessionUp,
                 totalDown = MmkvManager.decodeSettingsLong(KEY_TOTAL_DOWN, 0) + sessionDown,
@@ -119,6 +119,11 @@ object ConnectionStatsManager {
             // TrafficStats can be unavailable on exotic builds; stats are best-effort.
         }
     }
+
+    /** Live session clock, using the same session as the existing statistics. */
+    fun sessionElapsedMillis(): Long = if (running) {
+        (android.os.SystemClock.elapsedRealtime() - sessionStart).coerceAtLeast(0L)
+    } else 0L
 
     /** Current cumulative numbers (session + lifetime). */
     fun snapshot(): Snapshot = lastSnapshot

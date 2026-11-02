@@ -20,8 +20,8 @@ android {
         applicationId = "com.aras.client"
         minSdk = 24
         targetSdk = 37
-        versionCode = 1871
-        versionName = "1.8.71"
+        versionCode = 1880
+        versionName = "1.8.72"
 
         val abiFilterList = (properties["ABI_FILTERS"] as? String)?.split(';')
         // One installable APK for boxes whose Android firmware may be 32- or 64-bit.

@@ -81,6 +81,10 @@ class MainViewModel(
 
     fun setMainScreenActive(active: Boolean) {
         mainScreenActive = active
+        if (active && AppConfig.SINGLE_PROFILE_MODE && uiState.value.isRunning &&
+            uiState.value.exitCountryCode == null && uiState.value.status != MainStatus.Testing) {
+            testCurrentServerRealPing()
+        }
         if (!active) {
             clearStatusMessage()
             _uiState.update {
@@ -229,6 +233,12 @@ class MainViewModel(
             is MainServiceEvent.MeasureDelayResult -> {
                 // The daemon may send a second, delayed GeoIP enrichment. Neither it nor
                 // a result from a previous screen visit may resurrect a dismissed message.
+                // Country remains part of the live session even after transient test text disappears.
+                if (uiState.value.isRunning) {
+                    com.aras.client.util.CountryResolver.isoForCountry(event.result.country)?.let { code ->
+                        _uiState.update { it.copy(exitCountryCode = code) }
+                    }
+                }
                 if (mainScreenActive && acceptCurrentPingMessages && uiState.value.isRunning) {
                     val firstResult = uiState.value.status !is MainStatus.ConnectionTest
                     _uiState.update { it.copy(status = MainStatus.ConnectionTest(event.result)) }
@@ -1342,12 +1352,16 @@ class MainViewModel(
         _uiState.update { state ->
             state.copy(
                 isRunning = running,
+                exitCountryCode = if (connectionChanged) null else state.exitCountryCode,
                 isConnecting = false,
                 status = if (!clearTestingText && state.isTesting) state.status
                 else if (running) MainStatus.Connected else MainStatus.Disconnected
             )
         }
         if (running && uiState.value.status == MainStatus.Connected) showStatusMessage()
+        if (running && connectionChanged && AppConfig.SINGLE_PROFILE_MODE && mainScreenActive) {
+            testCurrentServerRealPing()
+        }
     }
 
     override fun onCleared() {

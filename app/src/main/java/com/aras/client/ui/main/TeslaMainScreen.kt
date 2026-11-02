@@ -49,6 +49,11 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aras.client.AppConfig
 import com.aras.client.R
+import com.aras.client.ui.compose.FlagIcon
+import com.aras.client.ui.compose.formatDuration
+import com.aras.client.util.ConnectionStatsManager
+import kotlinx.coroutines.delay
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,6 +104,7 @@ fun MainScreen(
         accent = accent,
         status = status,
         powerDescription = powerDescription,
+        countryCode = state.exitCountryCode,
         detail = if (state.statusMessageVisible &&
             (state.status is MainStatus.ConnectionTest || state.status is MainStatus.TestProgress)) {
             mainViewModel.formatStatus(state.status)
@@ -214,10 +220,19 @@ private fun TeslaConnectionContent(
     status: String,
     powerDescription: String,
     detail: String,
+    countryCode: String?,
     onToggle: () -> Unit,
     onTest: () -> Unit,
     onImport: () -> Unit,
 ) {
+    var sessionMillis by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(active) {
+        if (!active) sessionMillis = 0L
+        while (active) {
+            sessionMillis = ConnectionStatsManager.sessionElapsedMillis()
+            delay(1000)
+        }
+    }
     BoxWithConstraints(
         Modifier.fillMaxSize().background(TeslaBackground).safeDrawingPadding(),
         contentAlignment = Alignment.Center,
@@ -281,8 +296,31 @@ private fun TeslaConnectionContent(
                         .size((213 * scale).dp, (25 * scale).dp).wrapContentHeight(),
                     lineHeight = (25 * scale).sp,
                 )
-                Box(
-                    Modifier.offset((127.5f * scale).dp, (605.5f * scale).dp)
+                if (active) {
+                    Text(
+                        formatDuration(sessionMillis), color = TeslaSecondary, style = textStyle,
+                        fontSize = (20 * scale).sp, lineHeight = (25 * scale).sp,
+                        modifier = Modifier.offset((65 * scale).dp, (601 * scale).dp)
+                            .size((321 * scale).dp, (25 * scale).dp).wrapContentHeight(),
+                    )
+                    Row(
+                        Modifier.offset((45 * scale).dp, (635 * scale).dp)
+                            .size((361 * scale).dp, (25 * scale).dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        FlagIcon(countryCode, width = (24 * scale).dp, height = (18 * scale).dp)
+                        if (countryCode != null) Spacer(Modifier.width((8 * scale).dp))
+                        Text(
+                            countryCode?.let { Locale("", it).getDisplayCountry(Locale.ENGLISH) }
+                                ?: "Unknown country",
+                            color = TeslaSecondary, style = textStyle, fontSize = (17 * scale).sp,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                if (active) Box(
+                    Modifier.offset((127.5f * scale).dp, (681 * scale).dp)
                         .size((195 * scale).dp, (37 * scale).dp)
                         .clip(CircleShape).border((1 * scale).dp, TeslaSecondary, CircleShape)
                         .clickable(enabled = active && !testing, role = Role.Button, onClick = onTest),
@@ -298,11 +336,11 @@ private fun TeslaConnectionContent(
                 if (detail.isNotBlank()) Text(
                     detail, color = Color(0xFFA5A5A5), style = textStyle,
                     fontSize = (16 * scale).sp, lineHeight = (22 * scale).sp,
-                    modifier = Modifier.offset((45 * scale).dp, (665 * scale).dp)
-                        .size((361 * scale).dp, (86 * scale).dp).verticalScroll(rememberScrollState()),
+                    modifier = Modifier.offset((45 * scale).dp, (733 * scale).dp)
+                        .size((361 * scale).dp, (38 * scale).dp).verticalScroll(rememberScrollState()),
                 )
             }
-            Box(
+            if (!active) Box(
                 Modifier.offset((110 * scale).dp, ((if (ready) 779 else 408) * scale).dp)
                     .size((238 * scale).dp, (37 * scale).dp)
                     .clip(CircleShape).background(Color(0xFF19253A))

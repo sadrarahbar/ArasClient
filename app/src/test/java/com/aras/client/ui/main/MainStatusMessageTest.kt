@@ -56,6 +56,20 @@ class MainStatusMessageTest {
     }
 
     @Test
+    fun dismissingTransientTestTextKeepsMeasuredSessionCountry() {
+        val state = MainUiState(
+            isRunning = true,
+            exitCountryCode = "DE",
+            status = MainStatus.ConnectionTest(ConnectionTestResult(42, country = "Germany")),
+            statusMessageVisible = true,
+        )
+        val cleared = state.withoutServerStatusMessage()
+        assertEquals(MainStatus.Connected, cleared.status)
+        assertEquals("DE", cleared.exitCountryCode)
+        assertEquals("DE", cleared.copy(status = MainStatus.Testing).exitCountryCode)
+    }
+
+    @Test
     fun pingCountryCodeIsResolvedToIso() {
         assertEquals("DE", CountryResolver.isoForCountry("DE"))
         assertEquals("NL", CountryResolver.isoForCountry("Netherlands"))

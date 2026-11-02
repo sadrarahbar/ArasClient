@@ -26,6 +26,7 @@ data class MainUiState(
     // hung, and tapping again was the only feedback the user could get.
     val isConnecting: Boolean = false,
     val isTesting: Boolean = false,
+    val exitCountryCode: String? = null,
     val status: MainStatus = MainStatus.Disconnected,
     // Presentation only: hiding a message must not change connection or test state.
     val statusMessageVisible: Boolean = false,
